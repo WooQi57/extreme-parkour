@@ -66,11 +66,11 @@ def play(args):
     # override some parameters for testing
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 0
-    env_cfg.env.num_envs = 16 if not args.save else 64
+    env_cfg.env.num_envs = 1 if not args.save else 64
     env_cfg.env.episode_length_s = 60
     env_cfg.commands.resampling_time = 60
-    env_cfg.terrain.num_rows = 5
-    env_cfg.terrain.num_cols = 5
+    env_cfg.terrain.num_rows = 2
+    env_cfg.terrain.num_cols = 1
     env_cfg.terrain.height = [0.02, 0.02]
     env_cfg.terrain.terrain_dict = {"smooth slope": 0., 
                                     "rough slope up": 0.0,
@@ -86,12 +86,12 @@ def play(args):
                                     "platform": 0.,
                                     "large stairs up": 0.,
                                     "large stairs down": 0.,
-                                    "parkour": 0.2,
-                                    "parkour_hurdle": 0.2,
+                                    "parkour": 0.2*0,
+                                    "parkour_hurdle": 0.2*0,
                                     "parkour_flat": 0.,
-                                    "parkour_step": 0.2,
-                                    "parkour_gap": 0.2, 
-                                    "demo": 0.2}
+                                    "parkour_step": 1.0,
+                                    "parkour_gap": 0.2*0, 
+                                    "demo": 0.2*0}
     
     env_cfg.terrain.terrain_proportions = list(env_cfg.terrain.terrain_dict.values())
     env_cfg.terrain.curriculum = False
@@ -116,7 +116,7 @@ def play(args):
 
     # load policy
     train_cfg.runner.resume = True
-    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, return_log_dir=True)
+    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="500", return_log_dir=True)
     
     if args.use_jit:
         path = os.path.join(log_pth, "traced")

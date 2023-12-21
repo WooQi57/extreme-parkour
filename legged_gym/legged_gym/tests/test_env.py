@@ -35,20 +35,31 @@ from datetime import datetime
 import isaacgym
 from legged_gym.envs import *
 from legged_gym.utils import  get_args, export_policy_as_jit, task_registry, Logger
+from legged_gym.utils import webviewer
 
 import torch
 
 
 def test_env(args):
+    if args.web:
+        web_viewer = webviewer.WebViewer()
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
     # override some parameters for testing
     env_cfg.env.num_envs =  min(env_cfg.env.num_envs, 10)
 
     # prepare environment
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
+
+    if args.web:
+        web_viewer.setup(env)
     for i in range(int(10*env.max_episode_length)):
         actions = 0.*torch.ones(env.num_envs, env.num_actions, device=env.device)
         obs, _, rew, done, info = env.step(actions)
+        if args.web:
+            web_viewer.render(fetch_results=True,
+                        step_graphics=True,
+                        render_all_camera_sensors=True,
+                        wait_for_page_load=True)
     print("Done")
 
 if __name__ == '__main__':

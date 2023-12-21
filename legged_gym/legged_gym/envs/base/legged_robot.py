@@ -285,7 +285,10 @@ class LeggedRobot(BaseTask):
         return vec[:, [1, 0, 3, 2]]
 
     def reindex(self, vec):
-        return vec[:, [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]]
+        if self.num_actions==14:
+            return vec[:, [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8, 12,13]]
+        else:
+            return vec[:, [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]]
 
     def check_termination(self):
         """ Check if environments need to be reset

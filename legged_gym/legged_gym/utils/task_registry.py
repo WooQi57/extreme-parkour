@@ -102,7 +102,7 @@ class TaskRegistry():
                             headless=args.headless)
         return env, env_cfg
 
-    def make_alg_runner(self, env, name=None, args=None, train_cfg=None, init_wandb=True, log_root="default", **kwargs) -> Tuple[OnPolicyRunner, LeggedRobotCfgPPO]:
+    def make_alg_runner(self, env, name=None, args=None, train_cfg=None, init_wandb=True, log_root="default", model_name_include="model", **kwargs) -> Tuple[OnPolicyRunner, LeggedRobotCfgPPO]:
         """ Creates the training algorithm  either from a registered namme or from the provided config file.
 
         Args:
@@ -160,7 +160,7 @@ class TaskRegistry():
             print(log_root)
             print(train_cfg.runner.load_run)
             # load_root = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', "rough_a1", train_cfg.runner.load_run)
-            resume_path = get_load_path(log_root, load_run=train_cfg.runner.load_run, checkpoint=train_cfg.runner.checkpoint)
+            resume_path = get_load_path(log_root, load_run=train_cfg.runner.load_run, checkpoint=train_cfg.runner.checkpoint,model_name_include=model_name_include)
             runner.load(resume_path)
             if not train_cfg.policy.continue_from_last_std:
                 runner.alg.actor_critic.reset_std(train_cfg.policy.init_noise_std, 12, device=runner.device)
