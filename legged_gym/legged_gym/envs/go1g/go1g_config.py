@@ -75,7 +75,6 @@ class Go1GRoughCfg( LeggedRobotCfg ):
             'r_finger_joint': 0.0,    # [m]
         }
     class env(LeggedRobotCfg.env):
-        gripper_offset = 0.37
         num_actions = 14
 
         n_scan = 132
@@ -102,6 +101,7 @@ class Go1GRoughCfg( LeggedRobotCfg ):
         # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go1/urdf/go1_new.urdf'
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go1g/urdf/go1_gripper.urdf'
         foot_name = "foot"
+        finger_name = "finger"
         penalize_contacts_on = ["thigh", "calf", "finger", "gripper"]
         terminate_after_contacts_on = ["base"]#, "thigh", "calf"]
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter

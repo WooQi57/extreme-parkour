@@ -31,6 +31,10 @@ tensor([[nan, nan, nan,  ..., nan, nan, nan],
        grad_fn=<AddmmBackward0>)
 
 
-env_ids
+env_ids in _post_physics_step_callback
 correct offset
 use gym.find_actor_rigid_body_index and change root_state definition
+self.lookat_id
+env_ids 和 robot_idx搞混了
+632 error
+

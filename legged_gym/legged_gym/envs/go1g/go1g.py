@@ -53,6 +53,8 @@ from tqdm import tqdm
 import cv2
 import matplotlib.pyplot as plt
 
+verbose=True
+
 def euler_from_quaternion(quat_angle):
         """
         Convert a quaternion into euler angles (roll, pitch, yaw)
@@ -107,7 +109,6 @@ class Go1G(BaseTask):
         self.init_done = True
         self.global_counter = 0
         self.total_env_steps_counter = 0
-
         self.reset_idx(torch.arange(self.num_envs, device=self.device))
         self.post_physics_step()
 
@@ -118,7 +119,6 @@ class Go1G(BaseTask):
             actions (torch.Tensor): Tensor of shape (num_envs, num_actions_per_env)
         """
         actions = self.reindex(actions)
-
         actions.to(self.device)
         self.action_history_buf = torch.cat([self.action_history_buf[:, 1:].clone(), actions[:, None, :].clone()], dim=1)
         if self.cfg.domain_rand.action_delay:
@@ -212,7 +212,8 @@ class Go1G(BaseTask):
         self.reach_goal_timer[self.reached_goal_ids] += 1
 
         self.target_pos_rel = self.cur_goals[:, :2] - self.root_states[:, :2]
-        print(f"cur goal:{self.cur_goals[:,:2]},cur state:{self.root_states[:, :2]}")
+        if verbose:
+            print(f"cur goal:{self.cur_goals}\ncur state:{self.root_states[:, :3]}")
         self.next_target_pos_rel = self.next_goals[:, :2] - self.root_states[:, :2]
 
         norm = torch.norm(self.target_pos_rel, dim=-1, keepdim=True)
@@ -232,6 +233,13 @@ class Go1G(BaseTask):
         self.gym.refresh_net_contact_force_tensor(self.sim)
         self.gym.refresh_rigid_body_state_tensor(self.sim)
         self.gym.refresh_force_sensor_tensor(self.sim)
+        self.root_states = self.all_root_states[self.robot_idxs,:]
+        self.box_states = self.all_root_states[self.box_idxs,:]  # box position
+        hand_pos = self.rigid_body_states[:, self.finger_indices, :3]
+
+        if verbose:
+            print(f"box pose:{self.box_states[:,:3]}")
+            print(f"hand pose:{hand_pos}")        
 
         self.episode_length_buf += 1
         self.common_step_counter += 1
@@ -259,7 +267,8 @@ class Go1G(BaseTask):
         env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
         self.reset_idx(env_ids)
 
-        self.cur_goals = self._gather_cur_goals()
+        # self.cur_goals = self._gather_cur_goals()
+        self.cur_goals = self.box_states[:,:3]
         self.next_goals = self._gather_cur_goals(future=1)
 
         self.update_depth_buffer()
@@ -326,7 +335,6 @@ class Go1G(BaseTask):
         # avoid updating command curriculum at each step since the maximum command is common to all envs
         if self.cfg.commands.curriculum and (self.common_step_counter % self.max_episode_length==0):
             self.update_command_curriculum(env_ids)
-
         # reset robot states
         self._reset_dofs(env_ids)
         self._reset_root_states(env_ids)
@@ -627,9 +635,14 @@ class Go1G(BaseTask):
         self.dof_vel[env_ids] = 0.
 
         env_ids_int32 = env_ids.to(dtype=torch.int32)
+
+        # get robot actor state id
+        root_ids_int32 = torch.tensor(self.robot_idxs,device=self.device)[env_ids].to(dtype=torch.int32)
+
         self.gym.set_dof_state_tensor_indexed(self.sim,
                                               gymtorch.unwrap_tensor(self.dof_state),
-                                              gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))
+                                              gymtorch.unwrap_tensor(root_ids_int32), len(root_ids_int32))
+        
     def _reset_root_states(self, env_ids):
         """ Resets ROOT states position and velocities of selected environmments
             Sets base position based on the curriculum
@@ -637,6 +650,7 @@ class Go1G(BaseTask):
         Args:
             env_ids (List[int]): Environemnt ids
         """
+
         # base position
         if self.custom_origins:
             self.root_states[env_ids] = self.base_init_state
@@ -657,11 +671,12 @@ class Go1G(BaseTask):
         else:
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
+        # get robot root state id
         env_ids_int32 = env_ids.to(dtype=torch.int32)
+        root_ids_int32 = torch.tensor(self.robot_idxs,device=self.device)[env_ids].to(dtype=torch.int32)
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.all_root_states),
-                                                     gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))
-        self.root_states = self.all_root_states.view(self.num_envs, -1, 13)[:, 0, :] # (num_envs, 13)
+                                                     gymtorch.unwrap_tensor(root_ids_int32), len(root_ids_int32))
 
     def _push_robots(self):
         """ Random pushes the robots. Emulates an impulse by setting a randomized base velocity. 
@@ -669,7 +684,6 @@ class Go1G(BaseTask):
         max_vel = self.cfg.domain_rand.max_push_vel_xy
         self.root_states[:, 7:9] = torch_rand_float(-max_vel, max_vel, (self.num_envs, 2), device=self.device) # lin vel x/y
         self.gym.set_actor_root_state_tensor(self.sim, gymtorch.unwrap_tensor(self.all_root_states))
-        self.root_states = self.all_root_states.view(self.num_envs, -1, 13)[:, 0, :] # (num_envs, 13)
 
     def _update_terrain_curriculum(self, env_ids):
         """ Implements the game-inspired curriculum.
@@ -706,7 +720,7 @@ class Go1G(BaseTask):
         """ Initialize torch tensors which will contain simulation states and processed quantities
         """
         # get gym GPU state tensors
-        actor_root_state = self.gym.acquire_actor_root_state_tensor(self.sim)
+        actor_root_state = self.gym.acquire_actor_root_state_tensor(self.sim)  # [robot1,box1,robot2,box2...]
         dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)
         net_contact_forces = self.gym.acquire_net_contact_force_tensor(self.sim)
         force_sensor_tensor = self.gym.acquire_force_sensor_tensor(self.sim)
@@ -719,7 +733,11 @@ class Go1G(BaseTask):
 
         # create some wrapper tensors for different slices
         self.all_root_states = gymtorch.wrap_tensor(actor_root_state)
-        self.root_states = self.all_root_states.view(self.num_envs, -1, 13)[:, 0, :] # (num_envs, 13)
+        self.root_states = self.all_root_states[self.robot_idxs,:]
+        # self.root_states = self.all_root_states.view(self.num_envs, -1, 13)[:, 0, :] # (num_envs, 13)
+        if verbose:
+            print(f"all_root_states:{self.all_root_states}")
+            print(f"root_states:{self.root_states}")
         self.rigid_body_states = gymtorch.wrap_tensor(rigid_body_state_tensor).view(self.num_envs, -1, 13)
         self.dof_state = gymtorch.wrap_tensor(dof_state_tensor)
         self.dof_pos = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 0]
@@ -929,12 +947,13 @@ class Go1G(BaseTask):
         dof_props_asset = self.gym.get_asset_dof_properties(robot_asset)
         rigid_shape_props_asset = self.gym.get_asset_rigid_shape_properties(robot_asset)
 
-        # save body names from the asset
+        # save robot body names from the asset
         body_names = self.gym.get_asset_rigid_body_names(robot_asset)
         self.dof_names = self.gym.get_asset_dof_names(robot_asset)
         self.num_bodies = len(body_names)
         self.num_dofs = len(self.dof_names)
         feet_names = [s for s in body_names if self.cfg.asset.foot_name in s]
+        finger_names = [s for s in body_names if self.cfg.asset.finger_name in s]
 
 
         for s in ["FR_foot", "FL_foot", "RR_foot", "RL_foot"]:
@@ -958,9 +977,10 @@ class Go1G(BaseTask):
         env_lower = gymapi.Vec3(0., 0., 0.)
         env_upper = gymapi.Vec3(0., 0., 0.)
         self.actor_handles = []
+        self.robot_idxs = []
+        self.box_idxs = []
         self.envs = []
         self.cam_handles = []
-        self.box_handles = []
         self.cam_tensors = []
         self.mass_params_tensor = torch.zeros(self.num_envs, 4, dtype=torch.float, device=self.device, requires_grad=False)
         
@@ -986,26 +1006,34 @@ class Go1G(BaseTask):
             self.gym.set_actor_rigid_body_properties(env_handle, anymal_handle, body_props, recomputeInertia=True)
             self.envs.append(env_handle)
             self.actor_handles.append(anymal_handle)
-            
+            # get global index of robot in root state tensor
+            robot_idx = self.gym.get_actor_index(env_handle, anymal_handle, gymapi.DOMAIN_SIM)
+            self.robot_idxs.append(robot_idx)
+
             self.attach_camera(i, env_handle, anymal_handle)
 
             self.mass_params_tensor[i, :] = torch.from_numpy(mass_params).to(self.device).to(torch.float)
 
-        for i in tqdm(range(self.num_envs)):
             # add box
             box_pose = gymapi.Transform()
             box_size = 0.05
             asset_options = gymapi.AssetOptions()
             box_asset = self.gym.create_box(self.sim, box_size, box_size, box_size, asset_options)
-            box_pose.p = gymapi.Vec3(*(to_torch([self.cur_goals[i, 0]+self.cfg.env.gripper_offset,self.cur_goals[i, 1],3], device=self.device)))
+            box_pose.p = gymapi.Vec3(*(to_torch([self.cur_goals[i, 0],self.cur_goals[i, 1],0.5], device=self.device)))
             box_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.random.uniform(-np.pi, np.pi))
             # print(f"ori env:{self.env_origins[i]}")
             # print(f"cur goal:{self.cur_goals[i,:]}")
-            box_handle = self.gym.create_actor(self.envs[i], box_asset, box_pose, "box", i, 0)  #torch.isnan
-            self.box_handles.append(box_handle)
+            box_handle = self.gym.create_actor(env_handle, box_asset, box_pose, "box", i, 0)
             color = gymapi.Vec3(np.random.uniform(0, 1), np.random.uniform(0, 1), np.random.uniform(0, 1))
-            self.gym.set_rigid_body_color(self.envs[i], box_handle, 0, gymapi.MESH_VISUAL_AND_COLLISION, color)
+            self.gym.set_rigid_body_color(env_handle, box_handle, 0, gymapi.MESH_VISUAL_AND_COLLISION, color)
+            
+            # get global index of box in root state tensor
+            box_idx = self.gym.get_actor_index(env_handle, box_handle, gymapi.DOMAIN_SIM)
+            # box_idx = gym.get_actor_rigid_body_index(env, box_handle, 0, gymapi.DOMAIN_SIM)
+            self.box_idxs.append(box_idx)
 
+        if verbose:
+            print(f"robot_idxs:{self.robot_idxs}\nbox_idxs:{self.box_idxs}")
 
         if self.cfg.domain_rand.randomize_friction:
             self.friction_coeffs_tensor = self.friction_coeffs.to(self.device).to(torch.float).squeeze(-1)
@@ -1013,6 +1041,10 @@ class Go1G(BaseTask):
         self.feet_indices = torch.zeros(len(feet_names), dtype=torch.long, device=self.device, requires_grad=False)
         for i in range(len(feet_names)):
             self.feet_indices[i] = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], feet_names[i])
+
+        self.finger_indices = torch.zeros(len(finger_names), dtype=torch.long, device=self.device, requires_grad=False)
+        for i in range(len(finger_names)):
+            self.finger_indices[i] = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], finger_names[i])
 
         self.penalised_contact_indices = torch.zeros(len(penalized_contact_names), dtype=torch.long, device=self.device, requires_grad=False)
         for i in range(len(penalized_contact_names)):
@@ -1033,40 +1065,7 @@ class Go1G(BaseTask):
         calf_names = ["FR_calf_joint", "FL_calf_joint", "RR_calf_joint", "RL_calf_joint"]
         self.calf_indices = torch.zeros(len(calf_names), dtype=torch.long, device=self.device, requires_grad=False)
         for i, name in enumerate(calf_names):
-            self.calf_indices[i] = self.dof_names.index(name)
-    
-    def _create_obj(self):
-        box_pose = gymapi.Transform()
-        # add box
-        box_pose.p.x = table_pose.p.x + np.random.uniform(-0.2, 0.1)
-        box_pose.p.y = table_pose.p.y + np.random.uniform(-0.3, 0.3)
-        box_pose.p.z = table_dims.z + 0.5 * box_size
-        box_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.random.uniform(-math.pi, math.pi))
-        box_handle = gym.create_actor(env, box_asset, box_pose, "box", i, 0)
-        color = gymapi.Vec3(np.random.uniform(0, 1), np.random.uniform(0, 1), np.random.uniform(0, 1))
-        gym.set_rigid_body_color(env, box_handle, 0, gymapi.MESH_VISUAL_AND_COLLISION, color)
-
-        # get global index of box in rigid body state tensor
-        box_idx = gym.get_actor_rigid_body_index(env, box_handle, 0, gymapi.DOMAIN_SIM)
-        box_idxs.append(box_idx)
-        # box corner coords, used to determine grasping yaw
-        box_half_size = 0.5 * box_size
-        corner_coord = torch.Tensor([box_half_size, box_half_size, box_half_size])
-        corners = torch.stack(num_envs * [corner_coord]).to(device)
-
-
-        box_pos = rb_states[box_idxs, :3]
-        box_rot = rb_states[box_idxs, 3:7]
-
-        hand_pos = rb_states[hand_idxs, :3]
-        hand_rot = rb_states[hand_idxs, 3:7]
-        hand_vel = rb_states[hand_idxs, 7:]
-
-        to_box = box_pos - hand_pos
-        box_dist = torch.norm(to_box, dim=-1).unsqueeze(-1)
-        box_dir = to_box / box_dist
-        box_dot = box_dir @ down_dir.view(3, 1)
-        
+            self.calf_indices[i] = self.dof_names.index(name)        
 
     def _get_env_origins(self):
         """ Sets environment origins. On rough terrain the origins are defined by the terrain platforms.
