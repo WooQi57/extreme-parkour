@@ -53,7 +53,7 @@ from tqdm import tqdm
 import cv2
 import matplotlib.pyplot as plt
 
-verbose=True
+verbose=False
 
 def euler_from_quaternion(quat_angle):
         """
@@ -138,6 +138,7 @@ class Go1G(BaseTask):
 
         for _ in range(self.cfg.control.decimation):
             self.torques = self._compute_torques(self.actions).view(self.torques.shape)
+            # torques = torch.cat((self.torques,self.torques[:,-1:]),dim=1)  # repeat to control both fingers
             self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
             self.gym.simulate(self.sim)
             self.gym.fetch_results(self.sim, True)
@@ -674,6 +675,7 @@ class Go1G(BaseTask):
         # get robot root state id
         env_ids_int32 = env_ids.to(dtype=torch.int32)
         root_ids_int32 = torch.tensor(self.robot_idxs,device=self.device)[env_ids].to(dtype=torch.int32)
+        self.all_root_states[self.robot_idxs,:] = self.root_states
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.all_root_states),
                                                      gymtorch.unwrap_tensor(root_ids_int32), len(root_ids_int32))

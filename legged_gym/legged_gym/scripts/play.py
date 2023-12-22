@@ -67,7 +67,7 @@ def play(args):
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 0
     env_cfg.env.num_envs = 2 if not args.save else 64
-    env_cfg.env.episode_length_s = 60
+    env_cfg.env.episode_length_s = 5 # 60
     env_cfg.commands.resampling_time = 60
     env_cfg.terrain.num_rows = 2
     env_cfg.terrain.num_cols = 1
@@ -116,7 +116,7 @@ def play(args):
 
     # load policy
     train_cfg.runner.resume = True
-    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="500", return_log_dir=True)
+    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model", return_log_dir=True)
     
     if args.use_jit:
         path = os.path.join(log_pth, "traced")
