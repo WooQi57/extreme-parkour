@@ -75,7 +75,7 @@ class Go1GRoughCfg( LeggedRobotCfg ):
             'r_finger_joint': 0.0,    # [m]
         }
     class env(LeggedRobotCfg.env):
-        num_actions = 14
+        num_actions = 13
 
         n_scan = 132
         n_priv = 3+3 +3
@@ -107,6 +107,24 @@ class Go1GRoughCfg( LeggedRobotCfg ):
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
   
     class rewards( LeggedRobotCfg.rewards ):
+        class scales:
+            # tracking rewards
+            tracking_goal_vel = 1.5
+            tracking_yaw = 0.5
+            tracking_pitch = 0.5
+            # regularization rewards
+            lin_vel_z = -1.0
+            ang_vel_xy = -0.05
+            orientation = -1.
+            dof_acc = -2.5e-7
+            collision = -10.
+            action_rate = -0.1
+            delta_torques = -1.0e-7
+            torques = -0.00001
+            hip_pos = -0.5
+            dof_error = -0.04
+            feet_stumble = -1
+            feet_edge = -1
         soft_dof_pos_limit = 0.9
         base_height_target = 0.25
         # class scales( LeggedRobotCfg.rewards.scales ):

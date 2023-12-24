@@ -298,7 +298,7 @@ class Terrain:
             idx = 18
             parkour_flat_terrain(terrain,
                                    num_stones=self.num_goals - 2,
-                                   step_height=0.0 + 0.01*difficulty,
+                                   step_height=0.0 + 0.0*difficulty,
                                    x_range=[0.3,1.5],
                                    y_range=self.cfg.y_range,
                                    half_valid_width=[0.5, 1],

@@ -96,6 +96,7 @@ class Go1G(BaseTask):
         self.height_samples = None
         self.debug_viz = True
         self.init_done = False
+        self.use_box = False
         self._parse_cfg(self.cfg)
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)  # calls create_sim
 
@@ -138,8 +139,10 @@ class Go1G(BaseTask):
 
         for _ in range(self.cfg.control.decimation):
             self.torques = self._compute_torques(self.actions).view(self.torques.shape)
-            # torques = torch.cat((self.torques,self.torques[:,-1:]),dim=1)  # repeat to control both fingers
-            self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
+            tmp = self.torques.copy()
+            torques = torch.cat((tmp,tmp[:,-1:]),dim=1)  # repeat last element to control both fingers
+            self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(torques))
+            # self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
             self.gym.simulate(self.sim)
             self.gym.fetch_results(self.sim, True)
             self.gym.refresh_dof_state_tensor(self.sim)
@@ -1017,22 +1020,23 @@ class Go1G(BaseTask):
             self.mass_params_tensor[i, :] = torch.from_numpy(mass_params).to(self.device).to(torch.float)
 
             # add box
-            box_pose = gymapi.Transform()
-            box_size = 0.05
-            asset_options = gymapi.AssetOptions()
-            box_asset = self.gym.create_box(self.sim, box_size, box_size, box_size, asset_options)
-            box_pose.p = gymapi.Vec3(*(to_torch([self.cur_goals[i, 0],self.cur_goals[i, 1],0.5], device=self.device)))
-            box_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.random.uniform(-np.pi, np.pi))
-            # print(f"ori env:{self.env_origins[i]}")
-            # print(f"cur goal:{self.cur_goals[i,:]}")
-            box_handle = self.gym.create_actor(env_handle, box_asset, box_pose, "box", i, 0)
-            color = gymapi.Vec3(np.random.uniform(0, 1), np.random.uniform(0, 1), np.random.uniform(0, 1))
-            self.gym.set_rigid_body_color(env_handle, box_handle, 0, gymapi.MESH_VISUAL_AND_COLLISION, color)
-            
-            # get global index of box in root state tensor
-            box_idx = self.gym.get_actor_index(env_handle, box_handle, gymapi.DOMAIN_SIM)
-            # box_idx = gym.get_actor_rigid_body_index(env, box_handle, 0, gymapi.DOMAIN_SIM)
-            self.box_idxs.append(box_idx)
+            if self.use_box:
+                box_pose = gymapi.Transform()
+                box_size = 0.05
+                asset_options = gymapi.AssetOptions()
+                box_asset = self.gym.create_box(self.sim, box_size, box_size, box_size, asset_options)
+                box_pose.p = gymapi.Vec3(*(to_torch([self.cur_goals[i, 0],self.cur_goals[i, 1],0.5], device=self.device)))
+                box_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.random.uniform(-np.pi, np.pi))
+                # print(f"ori env:{self.env_origins[i]}")
+                # print(f"cur goal:{self.cur_goals[i,:]}")
+                box_handle = self.gym.create_actor(env_handle, box_asset, box_pose, "box", i, 0)
+                color = gymapi.Vec3(np.random.uniform(0, 1), np.random.uniform(0, 1), np.random.uniform(0, 1))
+                self.gym.set_rigid_body_color(env_handle, box_handle, 0, gymapi.MESH_VISUAL_AND_COLLISION, color)
+                
+                # get global index of box in root state tensor
+                box_idx = self.gym.get_actor_index(env_handle, box_handle, gymapi.DOMAIN_SIM)
+                # box_idx = gym.get_actor_rigid_body_index(env, box_handle, 0, gymapi.DOMAIN_SIM)
+                self.box_idxs.append(box_idx)
 
         if verbose:
             print(f"robot_idxs:{self.robot_idxs}\nbox_idxs:{self.box_idxs}")

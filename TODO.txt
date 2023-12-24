@@ -38,3 +38,4 @@ self.lookat_id
 env_ids 和 robot_idx搞混了
 632 error
 
+缩小action space
