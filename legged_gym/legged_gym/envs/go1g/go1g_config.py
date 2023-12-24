@@ -76,7 +76,8 @@ class Go1GRoughCfg( LeggedRobotCfg ):
         }
     class env(LeggedRobotCfg.env):
         num_actions = 13
-
+        num_dummy_dof = 1
+        
         n_scan = 132
         n_priv = 3+3 +3
         n_priv_latent = 4 + 1 + 14 +14
