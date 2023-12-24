@@ -96,7 +96,7 @@ class Go1G(BaseTask):
         self.height_samples = None
         self.debug_viz = True
         self.init_done = False
-        self.use_box = False
+        self.use_box = True
         self._parse_cfg(self.cfg)
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)  # calls create_sim
 
@@ -139,10 +139,10 @@ class Go1G(BaseTask):
 
         for _ in range(self.cfg.control.decimation):
             self.torques = self._compute_torques(self.actions).view(self.torques.shape)
-            tmp = self.torques.copy()
-            torques = torch.cat((tmp,tmp[:,-1:]),dim=1)  # repeat last element to control both fingers
-            self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(torques))
-            # self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
+            # tmp = self.torques.copy()
+            # torques = torch.cat((tmp,tmp[:,-1:]),dim=1)  # repeat last element to control both fingers
+            # self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(torques))
+            self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
             self.gym.simulate(self.sim)
             self.gym.fetch_results(self.sim, True)
             self.gym.refresh_dof_state_tensor(self.sim)

@@ -75,7 +75,7 @@ class Go1GRoughCfg( LeggedRobotCfg ):
             'r_finger_joint': 0.0,    # [m]
         }
     class env(LeggedRobotCfg.env):
-        num_actions = 13
+        num_actions = 14
 
         n_scan = 132
         n_priv = 3+3 +3
@@ -111,7 +111,7 @@ class Go1GRoughCfg( LeggedRobotCfg ):
             # tracking rewards
             tracking_goal_vel = 1.5
             tracking_yaw = 0.5
-            tracking_pitch = 0.5
+            # tracking_pitch = 0.5
             # regularization rewards
             lin_vel_z = -1.0
             ang_vel_xy = -0.05
