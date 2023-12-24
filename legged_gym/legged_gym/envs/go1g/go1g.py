@@ -262,7 +262,7 @@ class Go1G(BaseTask):
         self.last_contacts = contact
         
         # self._update_jump_schedule()
-        self._update_goals()
+        # self._update_goals() # don't need update goals in 1-level task
         self._post_physics_step_callback()
 
         # compute observations, rewards, resets, ...
@@ -309,7 +309,7 @@ class Go1G(BaseTask):
         """
         self.reset_buf = torch.zeros((self.num_envs, ), dtype=torch.bool, device=self.device)
         roll_cutoff = torch.abs(self.roll) > 1.5
-        pitch_cutoff = torch.abs(self.pitch) > 1.5
+        # pitch_cutoff = torch.abs(self.pitch) > 1.5
         reach_goal_cutoff = self.cur_goal_idx >= self.cfg.terrain.num_goals
         height_cutoff = self.root_states[:, 2] < -0.25
 
@@ -318,7 +318,7 @@ class Go1G(BaseTask):
 
         self.reset_buf |= self.time_out_buf
         self.reset_buf |= roll_cutoff
-        self.reset_buf |= pitch_cutoff
+        # self.reset_buf |= pitch_cutoff
         self.reset_buf |= height_cutoff
 
     def reset_idx(self, env_ids):
@@ -590,14 +590,18 @@ class Go1G(BaseTask):
             env_ids (List[int]): Environments ids for which new commands are needed
         """
         self.commands[env_ids, 0] = torch_rand_float(self.command_ranges["lin_vel_x"][0], self.command_ranges["lin_vel_x"][1], (len(env_ids), 1), device=self.device).squeeze(1)
-        if self.cfg.commands.heading_command:
-            self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["heading"][0], self.command_ranges["heading"][1], (len(env_ids), 1), device=self.device).squeeze(1)
-        else:
-            self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1], (len(env_ids), 1), device=self.device).squeeze(1)
-            self.commands[env_ids, 2] *= torch.abs(self.commands[env_ids, 2]) > self.cfg.commands.ang_vel_clip
+        self.commands[env_ids, 1] = torch_rand_float(self.command_ranges["lin_vel_y"][0], self.command_ranges["lin_vel_y"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["yaw"][0], self.command_ranges["yaw"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["pitch"][0], self.command_ranges["pitch"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        # if self.cfg.commands.heading_command:
+        #     self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["heading"][0], self.command_ranges["heading"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        # else:
+        #     self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        #     self.commands[env_ids, 2] *= torch.abs(self.commands[env_ids, 2]) > self.cfg.commands.ang_vel_clip
 
         # set small commands to zero
-        self.commands[env_ids, :2] *= torch.abs(self.commands[env_ids, 0:1]) > self.cfg.commands.lin_vel_clip
+        self.commands[env_ids, :2] *= torch.abs(self.commands[env_ids, :2]) > self.cfg.commands.lin_vel_clip
+        self.commands[env_ids, 2:] *= torch.abs(self.commands[env_ids, 2:]) > self.cfg.commands.ang_clip
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.
@@ -1286,17 +1290,27 @@ class Go1G(BaseTask):
 
     ################## parkour rewards ##################
 
-    def _reward_tracking_goal_vel(self):
-        norm = torch.norm(self.target_pos_rel, dim=-1, keepdim=True)
-        target_vec_norm = self.target_pos_rel / (norm + 1e-5)
+    # def _reward_tracking_goal_vel(self):
+    #     norm = torch.norm(self.target_pos_rel, dim=-1, keepdim=True)
+    #     target_vec_norm = self.target_pos_rel / (norm + 1e-5)
+    #     cur_vel = self.root_states[:, 7:9]
+    #     rew = torch.minimum(torch.sum(target_vec_norm * cur_vel, dim=-1), self.commands[:, 0]) / (self.commands[:, 0] + 1e-5)
+        # return rew
+
+    def _reward_tracking_lin_vel(self):
+        # Tracking of linear velocity commands (xy axes)
         cur_vel = self.root_states[:, 7:9]
-        rew = torch.minimum(torch.sum(target_vec_norm * cur_vel, dim=-1), self.commands[:, 0]) / (self.commands[:, 0] + 1e-5)
+        lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - cur_vel), dim=1)
+        return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)
+    
+    def _reward_tracking_yaw(self):
+        rew = torch.exp(-torch.abs(self.commands[:, 2] - self.yaw))
         return rew
 
-    def _reward_tracking_yaw(self):
-        rew = torch.exp(-torch.abs(self.target_yaw - self.yaw))
+    def _reward_tracking_pitch(self):
+        rew = torch.exp(-torch.abs(self.commands[:, 3] - self.pitch))
         return rew
-    
+       
     def _reward_lin_vel_z(self):
         rew = torch.square(self.base_lin_vel[:, 2])
         rew[self.env_class != 17] *= 0.5

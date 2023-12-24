@@ -109,7 +109,7 @@ class Go1GRoughCfg( LeggedRobotCfg ):
     class rewards( LeggedRobotCfg.rewards ):
         class scales:
             # tracking rewards
-            tracking_goal_vel = 1.5
+            tracking_lin_vel = 1.5
             tracking_yaw = 0.5
             tracking_pitch = 0.5
             # regularization rewards
@@ -154,6 +154,16 @@ class Go1GRoughCfg( LeggedRobotCfg ):
                 "demo": 0.0,}
         terrain_proportions = list(terrain_dict.values())
         y_range = [-0.4, 0.4]
+
+    class commands( LeggedRobotCfg.commands):
+        num_commands = 4 # default: lin_vel_x, lin_vel_y, yaw, pitch
+        class max_ranges:
+            lin_vel_x = [0., 1.5] # min max [m/s]
+            lin_vel_y = [-0.5, 0.5]   # min max [m/s]
+            yaw = [-0.5, 0.5]    # min max [rad]
+            pitch = [-0.5, 0.5]  # min max [rad]
+        lin_vel_clip = 0.2
+        ang_clip = 0.05
         
 class Go1GRoughCfgPPO( LeggedRobotCfgPPO ):
     class algorithm( LeggedRobotCfgPPO.algorithm ):

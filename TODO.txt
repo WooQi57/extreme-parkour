@@ -38,4 +38,6 @@ self.lookat_id
 env_ids 和 robot_idx搞混了
 632 error
 
-缩小action space
+12.24
+1.update observations
+2.p_gains wrong dimensions
