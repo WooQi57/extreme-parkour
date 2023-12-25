@@ -57,7 +57,7 @@ def get_load_path(root, load_run=-1, checkpoint=-1, model_name_include="model"):
 
 def play(args):
     if args.web:
-        web_viewer = webviewer.WebViewer()
+        web_viewer = webviewer.WebViewer(output_video_file="../figs/output.mp4")
     faulthandler.enable()
     exptid = args.exptid
     log_pth = "../../logs/{}/".format(args.proj_name) + args.exptid
@@ -175,7 +175,7 @@ def play(args):
                         step_graphics=True,
                         render_all_camera_sensors=True,
                         wait_for_page_load=True)
-
+        web_viewer.write_vid()
         # store data for plot
         cur_time = env.episode_length_buf[env.lookat_id].item() / 50
         time_hist.append(cur_time)

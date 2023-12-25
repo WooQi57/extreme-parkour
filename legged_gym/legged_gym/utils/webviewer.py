@@ -39,7 +39,7 @@ def spherical_to_cartesian(r, theta, phi):
     return x, y, z
 
 class WebViewer:
-    def __init__(self, host: str = "127.0.0.1", port: int = 5000) -> None:
+    def __init__(self, host: str = "127.0.0.1", port: int = 5000, output_video_file: str = 'output.mp4') -> None:
         """
         Web viewer for Isaac Gym
 
@@ -68,6 +68,7 @@ class WebViewer:
         self._event_load = threading.Event()
         self._event_stream = threading.Event()
         self._event_stream_depth = threading.Event()
+        self.vid_writer = imageio.get_writer(output_video_file, fps=50)
 
         # start server
         self._thread = threading.Thread(target=lambda: \
@@ -309,6 +310,9 @@ class WebViewer:
             self._event_stream_depth.set()
         self._notified = True
 
+
+    def write_vid(self):
+        self.vid_writer.append_data(self._image)
 
 def ik(jacobian_end_effector: torch.Tensor,
        current_position: torch.Tensor,
