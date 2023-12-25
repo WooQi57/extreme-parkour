@@ -30,7 +30,7 @@ tensor([[nan, nan, nan,  ..., nan, nan, nan],
         [nan, nan, nan,  ..., nan, nan, nan]], device='cuda:0',
        grad_fn=<AddmmBackward0>)
 
-
+## 12.19
 env_ids in _post_physics_step_callback
 correct offset
 use gym.find_actor_rigid_body_index and change root_state definition
@@ -38,6 +38,10 @@ self.lookat_id
 env_ids 和 robot_idx搞混了
 632 error
 
-12.24
-1.update observations
-2.p_gains wrong dimensions
+## 12.22
+-1.update observations
+-2.p_gains wrong dimensions
+3.visualization
+4.extras in step? what info?
+
+### 000-06有效果

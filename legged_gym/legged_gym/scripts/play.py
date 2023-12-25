@@ -68,7 +68,7 @@ def play(args):
         env_cfg.domain_rand.action_delay_view = 0
     env_cfg.env.num_envs = 2 if not args.save else 64
     env_cfg.env.episode_length_s = 5 # 60
-    env_cfg.commands.resampling_time = 60
+    env_cfg.commands.resampling_time = 5 # 60
     env_cfg.terrain.num_rows = 2
     env_cfg.terrain.num_cols = 1
     env_cfg.terrain.height = [0.02, 0.02]
@@ -111,6 +111,11 @@ def play(args):
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
     obs = env.get_observations()
 
+    # prepare plot data
+    time_hist = []
+    cmd_hist = []
+    state_hist = []
+
     if args.web:
         web_viewer.setup(env)
 
@@ -134,7 +139,7 @@ def play(args):
     infos = {}
     infos["depth"] = env.depth_buffer.clone().to(ppo_runner.device)[:, -1] if ppo_runner.if_depth else None
 
-    for i in range(10*int(env.max_episode_length)):
+    for i in range(5*int(env.max_episode_length)):
         if args.use_jit:
             if env.cfg.depth.use_camera:
                 if infos["depth"] is not None:
@@ -170,12 +175,58 @@ def play(args):
                         step_graphics=True,
                         render_all_camera_sensors=True,
                         wait_for_page_load=True)
-        print("time:", env.episode_length_buf[env.lookat_id].item() / 50, 
-              "cmd vx", env.commands[env.lookat_id, 0].item(),
-              "actual vx", env.base_lin_vel[env.lookat_id, 0].item(), )
+
+        # store data for plot
+        cur_time = env.episode_length_buf[env.lookat_id].item() / 50
+        time_hist.append(cur_time)
+        cmd_hist.append(env.commands[env.lookat_id, :].tolist())
+        cur_state = env.base_lin_vel[env.lookat_id, :].tolist()[:2]
+        cur_state.append(env.yaw[env.lookat_id].tolist())
+        cur_state.append(env.pitch[env.lookat_id].tolist())
+        state_hist.append(cur_state)
+        print("time:", cur_time, 
+              "cmd", env.commands[env.lookat_id, :],
+              "lin vel", env.base_lin_vel[env.lookat_id, :],
+              "yaw", env.yaw[env.lookat_id], 
+              "pitch", env.pitch[env.lookat_id])
         
         id = env.lookat_id
-        
+        if cur_time == 0 or i == 5*int(env.max_episode_length)-1:
+            time_hist = np.array(time_hist[:-2])
+            cmd_hist = np.array(cmd_hist[:-2])
+            state_hist = np.array(state_hist[:-2])
+            fig,axs = plt.subplots(4,1,sharex=True)
+            axs[0].plot(time_hist,cmd_hist[:,0],linestyle='--',label='cmd_vx')
+            axs[0].plot(time_hist,state_hist[:,0],label='vx')
+            axs[0].legend()
+            axs[0].set_ylabel('m/s')
+            axs[0].set_ylim((-0.1,1.6))
+
+            axs[1].plot(time_hist,cmd_hist[:,1],linestyle='--',label='cmd_vy')
+            axs[1].plot(time_hist,state_hist[:,1],label='vy')    
+            axs[1].legend()
+            axs[1].set_ylabel('m/s')
+            axs[1].set_ylim((-1,1))
+
+            axs[2].plot(time_hist,cmd_hist[:,2],linestyle='--',label='cmd_yaw')
+            axs[2].plot(time_hist,state_hist[:,2],label='yaw') 
+            axs[2].legend()
+            axs[2].set_ylabel('rad')  
+            axs[2].set_ylim((-1,1))
+
+            axs[3].plot(time_hist,cmd_hist[:,3],linestyle='--',label='cmd_pitch')
+            axs[3].plot(time_hist,state_hist[:,3],label='pitch')
+            axs[3].legend()
+            axs[3].set_ylabel('rad')
+            axs[3].set_ylim((-0.7,0.7))
+            plt.xlabel('time/s')
+            fig.suptitle(f"Commands (vx,vy,raw,pitch):{np.round(cmd_hist[0,:], decimals=2)}")
+            plt.tight_layout() 
+            plt.savefig(f'../figs/cmd_following_{i}.png')
+
+            time_hist = []
+            cmd_hist = []
+            state_hist = []
 
 if __name__ == '__main__':
     EXPORT_POLICY = False

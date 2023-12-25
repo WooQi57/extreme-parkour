@@ -99,7 +99,7 @@ class Go1G(BaseTask):
         self.use_box = False
         self._parse_cfg(self.cfg)
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)  # calls create_sim
-        self.num_dummy_dof = cfg.env.num_dummy_dof
+        self.num_dummy_dof = cfg.env.num_dummy_dof  # used only in simulation
 
         self.resize_transform = torchvision.transforms.Resize((self.cfg.depth.resized[1], self.cfg.depth.resized[0]), 
                                                               interpolation=torchvision.transforms.InterpolationMode.BICUBIC)
@@ -139,11 +139,10 @@ class Go1G(BaseTask):
         self.render()
 
         for _ in range(self.cfg.control.decimation):
-            self.torques = self._compute_torques(self.actions).view(self.torques.shape)
-            tmp = self.torques.copy()
-            torques = torch.cat((tmp,tmp[:,-1:]),dim=1)  # repeat last element to control both fingers
-            self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(torques))
-            # self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
+            actions_tmp = self.actions.clone()
+            actions = torch.cat((actions_tmp,actions_tmp[:,-1:]),dim=1)  # repeat last element to control both fingers
+            self.torques = self._compute_torques(actions).view(self.torques.shape)
+            self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
             self.gym.simulate(self.sim)
             self.gym.fetch_results(self.sim, True)
             self.gym.refresh_dof_state_tensor(self.sim)
@@ -403,22 +402,20 @@ class Go1G(BaseTask):
         """
         imu_obs = torch.stack((self.roll, self.pitch), dim=1)
         if self.global_counter % 5 == 0:
-            self.delta_yaw = self.target_yaw - self.yaw
-            self.delta_next_yaw = self.next_target_yaw - self.yaw
+            self.delta_yaw = self.commands[:, 2] - self.yaw
+            self.delta_pitch = self.commands[:, 3] - self.pitch
         obs_buf = torch.cat((#skill_vector, 
                             self.base_ang_vel  * self.obs_scales.ang_vel,   #[1,3]
                             imu_obs,    #[1,2]
-                            0*self.delta_yaw[:, None], 
-                            self.delta_yaw[:, None],
-                            self.delta_next_yaw[:, None],
-                            0*self.commands[:, 0:2], 
-                            self.commands[:, 0:1],  #[1,1]
-                            (self.env_class != 17).float()[:, None], 
-                            (self.env_class == 17).float()[:, None],
-                            self.reindex((self.dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),
-                            self.reindex(self.dof_vel * self.obs_scales.dof_vel),
-                            self.reindex(self.action_history_buf[:, -1]),
-                            self.reindex_feet(self.contact_filt.float()-0.5),
+                            self.delta_yaw[:, None],    #[1,1]
+                            self.delta_pitch[:, None],   #[1,1]
+                            self.commands,  #[1,4]
+                            (self.env_class != 17).float()[:, None], #[1,1]
+                            (self.env_class == 17).float()[:, None], #[1,1]
+                            self.reindex((self.dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),  #[1,13] contain no passive dof
+                            self.reindex(self.dof_vel * self.obs_scales.dof_vel),   #[1,13]
+                            self.reindex(self.action_history_buf[:, -1]),   #[1,13]
+                            self.reindex_feet(self.contact_filt.float()-0.5),   #[1,4]
                             ),dim=-1)
         priv_explicit = torch.cat((self.base_lin_vel * self.obs_scales.lin_vel,
                                    0 * self.base_lin_vel,
@@ -572,8 +569,8 @@ class Go1G(BaseTask):
         if self.cfg.commands.heading_command:
             forward = quat_apply(self.base_quat, self.forward_vec)
             heading = torch.atan2(forward[:, 1], forward[:, 0])
-            self.commands[:, 2] = torch.clip(0.8*wrap_to_pi(self.commands[:, 3] - heading), -1., 1.)
-            self.commands[:, 2] *= torch.abs(self.commands[:, 2]) > self.cfg.commands.ang_vel_clip
+            # self.commands[:, 2] = torch.clip(0.8*wrap_to_pi(self.commands[:, 3] - heading), -1., 1.)
+            # self.commands[:, 2] *= torch.abs(self.commands[:, 2]) > self.cfg.commands.ang_vel_clip
         
         if self.cfg.terrain.measure_heights:
             if self.global_counter % self.cfg.depth.update_interval == 0:
@@ -777,7 +774,7 @@ class Go1G(BaseTask):
         self.motor_strength = (str_rng[1] - str_rng[0]) * torch.rand(2, self.num_envs, self.num_actions+self.num_dummy_dof, dtype=torch.float, device=self.device, requires_grad=False) + str_rng[0]
         if self.cfg.env.history_encoding:
             self.obs_history_buf = torch.zeros(self.num_envs, self.cfg.env.history_len, self.cfg.env.n_proprio, device=self.device, dtype=torch.float)
-        self.action_history_buf = torch.zeros(self.num_envs, self.cfg.domain_rand.action_buf_len, self.num_dofs, device=self.device, dtype=torch.float)
+        self.action_history_buf = torch.zeros(self.num_envs, self.cfg.domain_rand.action_buf_len, self.num_actions, device=self.device, dtype=torch.float)
         self.contact_buf = torch.zeros(self.num_envs, self.cfg.env.contact_buf_len, 4, device=self.device, dtype=torch.float)
 
         self.commands = torch.zeros(self.num_envs, self.cfg.commands.num_commands, dtype=torch.float, device=self.device, requires_grad=False) # x vel, y vel, yaw vel, heading
