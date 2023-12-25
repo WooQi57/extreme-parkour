@@ -591,6 +591,7 @@ class Go1G(BaseTask):
         self.commands[env_ids, 1] = torch_rand_float(self.command_ranges["lin_vel_y"][0], self.command_ranges["lin_vel_y"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["yaw"][0], self.command_ranges["yaw"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["pitch"][0], self.command_ranges["pitch"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        self.commands[env_ids, 4] = torch_rand_float(-1, 1,(len(env_ids), 1), device=self.device).squeeze(1)
         # if self.cfg.commands.heading_command:
         #     self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["heading"][0], self.command_ranges["heading"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         # else:
@@ -599,7 +600,7 @@ class Go1G(BaseTask):
 
         # set small commands to zero
         self.commands[env_ids, :2] *= torch.abs(self.commands[env_ids, :2]) > self.cfg.commands.lin_vel_clip
-        self.commands[env_ids, 2:] *= torch.abs(self.commands[env_ids, 2:]) > self.cfg.commands.ang_clip
+        self.commands[env_ids, 2:4] *= torch.abs(self.commands[env_ids, 2:4]) > self.cfg.commands.ang_clip
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.
@@ -1308,6 +1309,11 @@ class Go1G(BaseTask):
     def _reward_tracking_pitch(self):
         rew = torch.exp(-torch.abs(self.commands[:, 3] - self.pitch))
         return rew
+    
+    def _reward_tracking_gripper(self):
+        close_right = self.commands[:, 4]*self.actions[:,-1]<0  # cmd>0 -- close -- action[-1]<0
+        rew = close_right.float()
+        return rew   
        
     def _reward_lin_vel_z(self):
         rew = torch.square(self.base_lin_vel[:, 2])

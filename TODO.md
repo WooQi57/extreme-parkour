@@ -47,4 +47,5 @@ env_ids 和 robot_idx搞混了
 ### 000-06有效果
 
 ## 12.25
-1.negative-close ; positive-open
+1.cmd positive - action negative - close ; cmd negative - action positive - open
+2.reward scale for display

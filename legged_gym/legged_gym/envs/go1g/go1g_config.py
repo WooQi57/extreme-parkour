@@ -82,7 +82,7 @@ class Go1GRoughCfg( LeggedRobotCfg ):
         n_scan = 132
         n_priv = 3+3 +3
         n_priv_latent = 4 + 1 + 14 +14
-        n_proprio = 3 + 2 + 2 + 4 + 2 + 13*3 + 4
+        n_proprio = 3 + 2 + 2 + 5 + 2 + 13*3 + 4
         history_len = 10
 
         num_observations = n_proprio + n_scan + history_len*n_proprio + n_priv_latent + n_priv #n_scan + n_proprio + n_priv #187 + 47 + 5 + 12 
@@ -114,6 +114,7 @@ class Go1GRoughCfg( LeggedRobotCfg ):
             tracking_lin_vel = 1.5
             tracking_yaw = 1.5  # 0.5
             tracking_pitch = 1.5  # 0.5
+            tracking_gripper = 0.5
             # regularization rewards
             lin_vel_z = -1.0
             ang_vel_xy = -0.05
@@ -158,7 +159,7 @@ class Go1GRoughCfg( LeggedRobotCfg ):
         y_range = [-0.4, 0.4]
 
     class commands( LeggedRobotCfg.commands):
-        num_commands = 4 # default: lin_vel_x, lin_vel_y, yaw, pitch
+        num_commands = 5 # default: lin_vel_x, lin_vel_y, yaw, pitch, gripper close
         class max_ranges:
             lin_vel_x = [0., 1.5] # min max [m/s]
             lin_vel_y = [-0.5, 0.5]   # min max [m/s]

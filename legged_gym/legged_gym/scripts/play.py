@@ -168,7 +168,7 @@ def play(args):
                 actions = ppo_runner.alg.depth_actor(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
             else:
                 actions = policy(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
-        print(actions[:,-1])
+        # print(actions[:,-1])
         obs, _, rews, dones, infos = env.step(actions.detach())
         if args.web:
             web_viewer.render(fetch_results=True,
@@ -180,7 +180,7 @@ def play(args):
         cur_time = env.episode_length_buf[env.lookat_id].item() / 50
         time_hist.append(cur_time)
         cmd_hist.append(env.commands[env.lookat_id, :].tolist())
-        cur_state = env.base_lin_vel[env.lookat_id, :].tolist()[:2]
+        cur_state = env.root_states[env.lookat_id, 7:9].tolist() #base_lin_vel?
         cur_state.append(env.yaw[env.lookat_id].tolist())
         cur_state.append(env.pitch[env.lookat_id].tolist())
         state_hist.append(cur_state)
@@ -192,9 +192,9 @@ def play(args):
         
         id = env.lookat_id
         if cur_time == 0 or i == 5*int(env.max_episode_length)-1:
-            time_hist = np.array(time_hist[:-2])
-            cmd_hist = np.array(cmd_hist[:-2])
-            state_hist = np.array(state_hist[:-2])
+            time_hist = np.array(time_hist[:-3])
+            cmd_hist = np.array(cmd_hist[:-3])
+            state_hist = np.array(state_hist[:-3])
             fig,axs = plt.subplots(4,1,sharex=True)
             axs[0].plot(time_hist,cmd_hist[:,0],linestyle='--',label='cmd_vx')
             axs[0].plot(time_hist,state_hist[:,0],label='vx')
@@ -220,7 +220,7 @@ def play(args):
             axs[3].set_ylabel('rad')
             axs[3].set_ylim((-0.7,0.7))
             plt.xlabel('time/s')
-            fig.suptitle(f"Commands (vx,vy,raw,pitch):{np.round(cmd_hist[0,:], decimals=2)}")
+            fig.suptitle(f"Commands (vx,vy,raw,pitch,grasp(>0)):{np.round(cmd_hist[0,:], decimals=2)}")
             plt.tight_layout() 
             plt.savefig(f'../figs/cmd_following_{i}.png')
 
