@@ -67,8 +67,8 @@ def play(args):
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 0
     env_cfg.env.num_envs = 2 if not args.save else 64
-    env_cfg.env.episode_length_s = 5 # 60
-    env_cfg.commands.resampling_time = 5 # 60
+    env_cfg.env.episode_length_s = 10 # 60
+    env_cfg.commands.resampling_time = 2 # 60
     env_cfg.terrain.num_rows = 2
     env_cfg.terrain.num_cols = 1
     env_cfg.terrain.height = [0.02, 0.02]
@@ -186,7 +186,7 @@ def play(args):
         state_hist.append(cur_state)
         print("time:", cur_time, 
               "cmd", env.commands[env.lookat_id, :],
-              "lin vel", env.base_lin_vel[env.lookat_id, :],
+              "lin vel", env.root_states[env.lookat_id, 7:10],
               "yaw", env.yaw[env.lookat_id], 
               "pitch", env.pitch[env.lookat_id])
         
@@ -220,7 +220,7 @@ def play(args):
             axs[3].set_ylabel('rad')
             axs[3].set_ylim((-0.7,0.7))
             plt.xlabel('time/s')
-            fig.suptitle(f"Commands (vx,vy,raw,pitch,grasp(>0)):{np.round(cmd_hist[0,:], decimals=2)}")
+            fig.suptitle(f"Commands (vx,vy,yaw,pitch,grasp(>0)):{np.round(cmd_hist[0,:], decimals=2)}")
             plt.tight_layout() 
             plt.savefig(f'../figs/cmd_following_{i}.png')
 
