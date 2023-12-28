@@ -131,6 +131,8 @@ class Go1GRoughCfg( LeggedRobotCfg ):
             dof_error = -0.04
             feet_stumble = -1
             feet_edge = -1
+
+        tracking_sigma = 0.5 # tracking reward = exp(-error^2/sigma)  0.2
         soft_dof_pos_limit = 0.9
         base_height_target = 0.25
         # class scales( LeggedRobotCfg.rewards.scales ):

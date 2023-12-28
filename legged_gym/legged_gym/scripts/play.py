@@ -185,10 +185,13 @@ def play(args):
         cur_state.append(env.pitch[env.lookat_id].tolist())
         state_hist.append(cur_state)
         print("time:", cur_time, 
-              "cmd", env.commands[env.lookat_id, :],
-              "lin vel", env.root_states[env.lookat_id, 7:10],
-              "yaw", env.yaw[env.lookat_id], 
-              "pitch", env.pitch[env.lookat_id])
+              "\ncmd:", env.commands[env.lookat_id, :].tolist(),
+              "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
+              "\nbase_pos:", env.root_states[env.lookat_id, :3].tolist(),
+              "\nyaw:", env.yaw[env.lookat_id].tolist(), 
+              "\ntarget_yaw:", env.target_yaw[env.lookat_id].tolist(), 
+              "\npitch:", env.pitch[env.lookat_id].tolist(),
+              "\ntarget_pitch:", env.target_pitch[env.lookat_id].tolist())
         
         id = env.lookat_id
         if cur_time == 0 or i == 5*int(env.max_episode_length)-1:

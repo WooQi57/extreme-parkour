@@ -590,6 +590,7 @@ class Go1G(BaseTask):
         self.commands[env_ids, 0] = torch_rand_float(self.command_ranges["target_x"][0], self.command_ranges["target_x"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 1] = torch_rand_float(self.command_ranges["target_y"][0], self.command_ranges["target_y"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["target_z"][0], self.command_ranges["target_z"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        self.commands[env_ids, :3] += self.env_origins[env_ids]
         self.commands[env_ids, 3] = torch_rand_float(-1, 1,(len(env_ids), 1), device=self.device).squeeze(1)
         # if self.cfg.commands.heading_command:
         #     self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["heading"][0], self.command_ranges["heading"][1], (len(env_ids), 1), device=self.device).squeeze(1)
