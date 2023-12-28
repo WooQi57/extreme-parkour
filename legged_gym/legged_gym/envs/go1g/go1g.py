@@ -33,7 +33,7 @@ from time import time
 from warnings import WarningMessage
 import numpy as np
 import os
-os.environ['CUDA_LAUNCH_BLOCKING']='1'
+# os.environ['CUDA_LAUNCH_BLOCKING']='1'
 from isaacgym.torch_utils import *
 from isaacgym import gymtorch, gymapi, gymutil
 
@@ -1304,6 +1304,7 @@ class Go1G(BaseTask):
         # Tracking of goal position
         ee_error = torch.sum(torch.square(self.target_position - self.ee_pos), dim=1)
         rew = torch.exp(-ee_error/self.cfg.rewards.tracking_sigma)
+        # rew = 1/(ee_error+0.2)
         # print(f"rew_tracking_goal_pos:{rew}")
         return rew
     

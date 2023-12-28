@@ -188,6 +188,8 @@ class Go1GRoughCfgPPO( LeggedRobotCfgPPO ):
         run_name = ''
         experiment_name = 'rough_a1'
         resume = False
+        max_iterations = 50000 # number of policy updates 50000
+
     class estimator( LeggedRobotCfgPPO.estimator):
         priv_states_dim = Go1GRoughCfg.env.n_priv
         num_prop = Go1GRoughCfg.env.n_proprio
