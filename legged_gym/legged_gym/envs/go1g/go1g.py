@@ -212,10 +212,12 @@ class Go1G(BaseTask):
         self.cur_goal_idx[next_flag] += 1
         self.reach_goal_timer[next_flag] = 0
 
-        self.reached_goal_ids = torch.norm(self.commands[:, :3]-self.ee_pos, dim=1) < self.cfg.env.next_goal_threshold
+        _target_position = self.commands[:,:2] + self.env_origins[:,:2]
+        self.target_position = torch.cat((_target_position, self.commands[:,2:3]), dim=1)
+        self.reached_goal_ids = torch.norm(self.target_position-self.ee_pos, dim=1) < self.cfg.env.next_goal_threshold
         self.reach_goal_timer[self.reached_goal_ids] += 1
 
-        self.target_pos_rel = self.commands[:, :3] - self.root_states[:, :3]
+        self.target_pos_rel = self.target_position - self.root_states[:, :3]
 
         norm = torch.norm(self.target_pos_rel, dim=-1, keepdim=True)
         target_vec_norm = self.target_pos_rel / (norm + 1e-5)
@@ -405,17 +407,18 @@ class Go1G(BaseTask):
             self.delta_yaw = self.target_yaw - self.yaw
             self.delta_pitch = self.target_pitch - self.pitch
         obs_buf = torch.cat((#skill_vector, 
-                            self.base_ang_vel  * self.obs_scales.ang_vel,   #[1,3]
-                            imu_obs,    #[1,2]
-                            self.delta_yaw[:, None],    #[1,1]
-                            self.delta_pitch[:, None],   #[1,1]
-                            self.commands,  #[1,4]
-                            (self.env_class != 17).float()[:, None], #[1,1]
-                            (self.env_class == 17).float()[:, None], #[1,1]
-                            self.reindex((self.dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),  #[1,13] contain no passive dof
-                            self.reindex(self.dof_vel * self.obs_scales.dof_vel),   #[1,13]
-                            self.reindex(self.action_history_buf[:, -1]),   #[1,13]
-                            self.reindex_feet(self.contact_filt.float()-0.5),   #[1,4]
+                            self.base_ang_vel  * self.obs_scales.ang_vel,   #3
+                            imu_obs,    #2
+                            self.delta_yaw[:, None],    #1
+                            self.delta_pitch[:, None],   #1
+                            self.target_position-self.ee_pos,  #3
+                            self.commands[:,-1:],  #1
+                            (self.env_class != 17).float()[:, None], #1
+                            (self.env_class == 17).float()[:, None], #1
+                            self.reindex((self.dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),  #13 contain no passive dof
+                            self.reindex(self.dof_vel * self.obs_scales.dof_vel),   #13
+                            self.reindex(self.action_history_buf[:, -1]),   #13
+                            self.reindex_feet(self.contact_filt.float()-0.5),   #4
                             ),dim=-1)
         priv_explicit = torch.cat((self.base_lin_vel * self.obs_scales.lin_vel,
                                    0 * self.base_lin_vel,
@@ -590,7 +593,6 @@ class Go1G(BaseTask):
         self.commands[env_ids, 0] = torch_rand_float(self.command_ranges["target_x"][0], self.command_ranges["target_x"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 1] = torch_rand_float(self.command_ranges["target_y"][0], self.command_ranges["target_y"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["target_z"][0], self.command_ranges["target_z"][1], (len(env_ids), 1), device=self.device).squeeze(1)
-        self.commands[env_ids, :3] += self.env_origins[env_ids]
         self.commands[env_ids, 3] = torch_rand_float(-1, 1,(len(env_ids), 1), device=self.device).squeeze(1)
         # if self.cfg.commands.heading_command:
         #     self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["heading"][0], self.command_ranges["heading"][1], (len(env_ids), 1), device=self.device).squeeze(1)
@@ -1289,25 +1291,30 @@ class Go1G(BaseTask):
 
     ################## parkour rewards ##################
 
-    # def _reward_tracking_goal_vel(self):
-    #     norm = torch.norm(self.target_pos_rel, dim=-1, keepdim=True)
-    #     target_vec_norm = self.target_pos_rel / (norm + 1e-5)
-    #     cur_vel = self.root_states[:, 7:9]
-    #     rew = torch.minimum(torch.sum(target_vec_norm * cur_vel, dim=-1), self.commands[:, 0]) / (self.commands[:, 0] + 1e-5)
-        # return rew
+    def _reward_tracking_goal_vel(self):
+        norm = torch.norm(self.target_pos_rel[:,:2], dim=-1, keepdim=True)
+        target_vec_norm = self.target_pos_rel[:,:2] / (norm + 1e-5)
+        cur_vel = self.root_states[:, 7:9]
+        vel_proj = torch.sum(target_vec_norm * cur_vel, dim=-1)  # project velocity to the target direction
+        rew = torch.minimum(vel_proj, torch.ones_like(vel_proj)*self.cfg.commands.vx_max) / (torch.ones_like(vel_proj)*self.cfg.commands.vx_max + 1e-5)
+        # print(f"rew_tracking_goal_vel:{rew}")
+        return rew
 
     def _reward_tracking_goal_pos(self):
         # Tracking of goal position
-        ee_error = torch.sum(torch.square(self.commands[:, :3] - self.ee_pos), dim=1)
+        ee_error = torch.sum(torch.square(self.target_position - self.ee_pos), dim=1)
         rew = torch.exp(-ee_error/self.cfg.rewards.tracking_sigma)
+        # print(f"rew_tracking_goal_pos:{rew}")
         return rew
     
     def _reward_tracking_yaw(self):
         rew = torch.exp(-torch.abs(self.target_yaw - self.yaw))
+        # print(f"rew_tracking_yaw:{rew}")
         return rew
 
     def _reward_tracking_pitch(self):
         rew = torch.exp(-torch.abs(self.target_pitch - self.pitch))
+        # print(f"rew_tracking_pitch:{rew}")
         return rew
     
     def _reward_tracking_gripper(self):

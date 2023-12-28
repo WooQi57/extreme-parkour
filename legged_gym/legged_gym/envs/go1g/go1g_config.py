@@ -88,6 +88,7 @@ class Go1GRoughCfg( LeggedRobotCfg ):
         num_observations = n_proprio + n_scan + history_len*n_proprio + n_priv_latent + n_priv #n_scan + n_proprio + n_priv #187 + 47 + 5 + 12 
 
         next_goal_threshold = 0.1
+
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
         control_type = 'P'
@@ -114,9 +115,10 @@ class Go1GRoughCfg( LeggedRobotCfg ):
     class rewards( LeggedRobotCfg.rewards ):
         class scales:
             # tracking rewards
+            tracking_goal_vel = 1.5
             tracking_goal_pos = 1.5
-            tracking_yaw = 1.5  # 0.5
-            tracking_pitch = 1.5  # 0.5
+            tracking_yaw = 0.5  # 0.5
+            tracking_pitch = 0.5  # 0.5
             tracking_gripper = 0.5
             # regularization rewards
             lin_vel_z = -1.0
@@ -132,7 +134,7 @@ class Go1GRoughCfg( LeggedRobotCfg ):
             feet_stumble = -1
             feet_edge = -1
 
-        tracking_sigma = 0.5 # tracking reward = exp(-error^2/sigma)  0.2
+        tracking_sigma = 0.2 # tracking reward = exp(-error^2/sigma)  0.2
         soft_dof_pos_limit = 0.9
         base_height_target = 0.25
         # class scales( LeggedRobotCfg.rewards.scales ):
@@ -167,12 +169,13 @@ class Go1GRoughCfg( LeggedRobotCfg ):
     class commands( LeggedRobotCfg.commands):
         num_commands = 4 # target_x, target_y, target_z, gripper close
         class max_ranges:
-            target_x = [0.5, 1.5] # min max [m]
-            target_y = [-0.5, 0.5]   # min max [m]
-            target_z = [0, 0.5]    # min max [m]
+            target_x = [1, 2] # min max [m]
+            target_y = [-1, 1]   # min max [m]
+            target_z = [0, 0.3]    # min max [m]
         lin_vel_clip = 0.2
         ang_clip = 0.05
-        
+        vx_max = 0.5
+
 class Go1GRoughCfgPPO( LeggedRobotCfgPPO ):
     class algorithm( LeggedRobotCfgPPO.algorithm ):
         entropy_coef = 0.01

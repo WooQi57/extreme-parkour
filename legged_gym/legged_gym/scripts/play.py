@@ -179,12 +179,12 @@ def play(args):
         # store data for plot
         cur_time = env.episode_length_buf[env.lookat_id].item() / 50
         time_hist.append(cur_time)
-        cmd_hist.append(env.commands[env.lookat_id, :].tolist())
+        cmd_hist.append((env.commands[env.lookat_id, :]).tolist())
         cur_state = env.root_states[env.lookat_id, 7:9].tolist() #base_lin_vel?
         cur_state.append(env.yaw[env.lookat_id].tolist())
         cur_state.append(env.pitch[env.lookat_id].tolist())
         state_hist.append(cur_state)
-        print("time:", cur_time, 
+        print("----------\ntime:", cur_time, 
               "\ncmd:", env.commands[env.lookat_id, :].tolist(),
               "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
               "\nbase_pos:", env.root_states[env.lookat_id, :3].tolist(),
