@@ -212,21 +212,19 @@ class Go1G(BaseTask):
         self.cur_goal_idx[next_flag] += 1
         self.reach_goal_timer[next_flag] = 0
 
-        self.reached_goal_ids = torch.norm(self.root_states[:, :2] - self.cur_goals[:, :2], dim=1) < self.cfg.env.next_goal_threshold
+        self.reached_goal_ids = torch.norm(self.commands[:, :3]-self.ee_pos, dim=1) < self.cfg.env.next_goal_threshold
         self.reach_goal_timer[self.reached_goal_ids] += 1
 
-        self.target_pos_rel = self.cur_goals[:, :2] - self.root_states[:, :2]
-        if verbose:
-            print(f"cur goal:{self.cur_goals}\ncur state:{self.root_states[:, :3]}")
-        self.next_target_pos_rel = self.next_goals[:, :2] - self.root_states[:, :2]
+        self.target_pos_rel = self.commands[:, :3] - self.root_states[:, :3]
 
         norm = torch.norm(self.target_pos_rel, dim=-1, keepdim=True)
         target_vec_norm = self.target_pos_rel / (norm + 1e-5)
-        self.target_yaw = torch.atan2(target_vec_norm[:, 1], target_vec_norm[:, 0])
-
-        norm = torch.norm(self.next_target_pos_rel, dim=-1, keepdim=True)
-        target_vec_norm = self.next_target_pos_rel / (norm + 1e-5)
-        self.next_target_yaw = torch.atan2(target_vec_norm[:, 1], target_vec_norm[:, 0])
+        target_vec_xz_norm = torch.norm(target_vec_norm[:,[0,2]], dim=-1)  # projection on the xz plane
+        self.target_pitch = torch.atan2(target_vec_norm[:, 2], target_vec_norm[:, 0])
+        self.target_yaw = torch.atan2(target_vec_norm[:, 1], target_vec_xz_norm) + self.cfg.asset.gripper_pitch_offset
+        # norm = torch.norm(self.next_target_pos_rel, dim=-1, keepdim=True)
+        # target_vec_norm = self.next_target_pos_rel / (norm + 1e-5)
+        # self.next_target_yaw = torch.atan2(target_vec_norm[:, 1], target_vec_norm[:, 0])
 
     def post_physics_step(self):
         """ check terminations, compute observations and rewards
@@ -239,11 +237,6 @@ class Go1G(BaseTask):
         self.gym.refresh_force_sensor_tensor(self.sim)
         self.root_states = self.all_root_states[self.robot_idxs,:]
         self.box_states = self.all_root_states[self.box_idxs,:]  # box position
-        hand_pos = self.rigid_body_states[:, self.finger_indices, :3]
-
-        if verbose:
-            print(f"box pose:{self.box_states[:,:3]}")
-            print(f"hand pose:{hand_pos}")        
 
         self.episode_length_buf += 1
         self.common_step_counter += 1
@@ -256,13 +249,20 @@ class Go1G(BaseTask):
         self.base_lin_acc = (self.root_states[:, 7:10] - self.last_root_vel[:, :3]) / self.dt
 
         self.roll, self.pitch, self.yaw = euler_from_quaternion(self.base_quat)
+        hand_pos = self.rigid_body_states[:, self.finger_indices, :3]
+        self.ee_pos = (self.rigid_body_states[:, self.finger_indices[0], :3]+self.rigid_body_states[:, self.finger_indices[1], :3])/2
+
+        if verbose:
+            print(f"box pose:{self.box_states[:,:3]}")
+            print(f"hand pose:{hand_pos}")        
+            print(f"ee pose:{self.ee_pos}")        
 
         contact = torch.norm(self.contact_forces[:, self.feet_indices], dim=-1) > 2.
         self.contact_filt = torch.logical_or(contact, self.last_contacts) 
         self.last_contacts = contact
         
         # self._update_jump_schedule()
-        # self._update_goals() # don't need update goals in 1-level task
+        self._update_goals()
         self._post_physics_step_callback()
 
         # compute observations, rewards, resets, ...
@@ -402,8 +402,8 @@ class Go1G(BaseTask):
         """
         imu_obs = torch.stack((self.roll, self.pitch), dim=1)
         if self.global_counter % 5 == 0:
-            self.delta_yaw = self.commands[:, 2] - self.yaw
-            self.delta_pitch = self.commands[:, 3] - self.pitch
+            self.delta_yaw = self.target_yaw - self.yaw
+            self.delta_pitch = self.target_pitch - self.pitch
         obs_buf = torch.cat((#skill_vector, 
                             self.base_ang_vel  * self.obs_scales.ang_vel,   #[1,3]
                             imu_obs,    #[1,2]
@@ -562,7 +562,7 @@ class Go1G(BaseTask):
         """ Callback called before computing terminations, rewards, and observations
             Default behaviour: Compute ang vel command based on target and heading, compute measured terrain heights and randomly push robots
         """
-        # 
+        # resample commands in episodes
         env_ids = (self.episode_length_buf % int(self.cfg.commands.resampling_time / self.dt)==0)
         self._resample_commands(env_ids.nonzero(as_tuple=False).flatten())
 
@@ -587,20 +587,19 @@ class Go1G(BaseTask):
         Args:
             env_ids (List[int]): Environments ids for which new commands are needed
         """
-        self.commands[env_ids, 0] = torch_rand_float(self.command_ranges["lin_vel_x"][0], self.command_ranges["lin_vel_x"][1], (len(env_ids), 1), device=self.device).squeeze(1)
-        self.commands[env_ids, 1] = torch_rand_float(self.command_ranges["lin_vel_y"][0], self.command_ranges["lin_vel_y"][1], (len(env_ids), 1), device=self.device).squeeze(1)
-        self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["yaw"][0], self.command_ranges["yaw"][1], (len(env_ids), 1), device=self.device).squeeze(1)
-        self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["pitch"][0], self.command_ranges["pitch"][1], (len(env_ids), 1), device=self.device).squeeze(1)
-        self.commands[env_ids, 4] = torch_rand_float(-1, 1,(len(env_ids), 1), device=self.device).squeeze(1)
+        self.commands[env_ids, 0] = torch_rand_float(self.command_ranges["target_x"][0], self.command_ranges["target_x"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        self.commands[env_ids, 1] = torch_rand_float(self.command_ranges["target_y"][0], self.command_ranges["target_y"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["target_z"][0], self.command_ranges["target_z"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        self.commands[env_ids, 3] = torch_rand_float(-1, 1,(len(env_ids), 1), device=self.device).squeeze(1)
         # if self.cfg.commands.heading_command:
         #     self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["heading"][0], self.command_ranges["heading"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         # else:
         #     self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         #     self.commands[env_ids, 2] *= torch.abs(self.commands[env_ids, 2]) > self.cfg.commands.ang_vel_clip
 
-        # set small commands to zero
-        self.commands[env_ids, :2] *= torch.abs(self.commands[env_ids, :2]) > self.cfg.commands.lin_vel_clip
-        self.commands[env_ids, 2:4] *= torch.abs(self.commands[env_ids, 2:4]) > self.cfg.commands.ang_clip
+        # # set small commands to zero
+        # self.commands[env_ids, :2] *= torch.abs(self.commands[env_ids, :2]) > self.cfg.commands.lin_vel_clip
+        # self.commands[env_ids, 2:4] *= torch.abs(self.commands[env_ids, 2:4]) > self.cfg.commands.ang_clip
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.
@@ -1296,22 +1295,22 @@ class Go1G(BaseTask):
     #     rew = torch.minimum(torch.sum(target_vec_norm * cur_vel, dim=-1), self.commands[:, 0]) / (self.commands[:, 0] + 1e-5)
         # return rew
 
-    def _reward_tracking_lin_vel(self):
-        # Tracking of linear velocity commands (xy axes)
-        cur_vel = self.root_states[:, 7:9]
-        lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - cur_vel), dim=1)
-        return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)
+    def _reward_tracking_goal_pos(self):
+        # Tracking of goal position
+        ee_error = torch.sum(torch.square(self.commands[:, :3] - self.ee_pos), dim=1)
+        rew = torch.exp(-ee_error/self.cfg.rewards.tracking_sigma)
+        return rew
     
     def _reward_tracking_yaw(self):
-        rew = torch.exp(-torch.abs(self.commands[:, 2] - self.yaw))
+        rew = torch.exp(-torch.abs(self.target_yaw - self.yaw))
         return rew
 
     def _reward_tracking_pitch(self):
-        rew = torch.exp(-torch.abs(self.commands[:, 3] - self.pitch))
+        rew = torch.exp(-torch.abs(self.target_pitch - self.pitch))
         return rew
     
     def _reward_tracking_gripper(self):
-        close_right = self.commands[:, 4]*self.actions[:,-1]<0  # cmd>0 -- close -- action[-1]<0
+        close_right = self.commands[:, -1]*self.actions[:,-1]<0  # cmd>0 -- close -- action[-1]<0
         rew = close_right.float()
         return rew   
        

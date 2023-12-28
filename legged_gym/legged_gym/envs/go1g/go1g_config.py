@@ -82,11 +82,12 @@ class Go1GRoughCfg( LeggedRobotCfg ):
         n_scan = 132
         n_priv = 3+3 +3
         n_priv_latent = 4 + 1 + 14 +14
-        n_proprio = 3 + 2 + 2 + 5 + 2 + 13*3 + 4
+        n_proprio = 3 + 2 + 2 + 4 + 2 + 13*3 + 4
         history_len = 10
 
         num_observations = n_proprio + n_scan + history_len*n_proprio + n_priv_latent + n_priv #n_scan + n_proprio + n_priv #187 + 47 + 5 + 12 
 
+        next_goal_threshold = 0.1
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
         control_type = 'P'
@@ -107,11 +108,13 @@ class Go1GRoughCfg( LeggedRobotCfg ):
         penalize_contacts_on = ["thigh", "calf", "finger", "gripper"]
         terminate_after_contacts_on = ["base"]#, "thigh", "calf"]
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
-  
+
+        gripper_pitch_offset = 0
+
     class rewards( LeggedRobotCfg.rewards ):
         class scales:
             # tracking rewards
-            tracking_lin_vel = 1.5
+            tracking_goal_pos = 1.5
             tracking_yaw = 1.5  # 0.5
             tracking_pitch = 1.5  # 0.5
             tracking_gripper = 0.5
@@ -157,14 +160,14 @@ class Go1GRoughCfg( LeggedRobotCfg ):
                 "demo": 0.0,}
         terrain_proportions = list(terrain_dict.values())
         y_range = [-0.4, 0.4]
+        num_goals = 1
 
     class commands( LeggedRobotCfg.commands):
-        num_commands = 5 # default: lin_vel_x, lin_vel_y, yaw, pitch, gripper close
+        num_commands = 4 # target_x, target_y, target_z, gripper close
         class max_ranges:
-            lin_vel_x = [0., 1.5] # min max [m/s]
-            lin_vel_y = [-0.5, 0.5]   # min max [m/s]
-            yaw = [-1, 1]    # min max [rad]
-            pitch = [-0.7, 0.7]  # min max [rad]
+            target_x = [0.5, 1.5] # min max [m]
+            target_y = [-0.5, 0.5]   # min max [m]
+            target_z = [0, 0.5]    # min max [m]
         lin_vel_clip = 0.2
         ang_clip = 0.05
         
