@@ -222,7 +222,7 @@ class Go1G(BaseTask):
         norm = torch.norm(self.target_pos_rel, dim=-1, keepdim=True)
         target_vec_norm = self.target_pos_rel / (norm + 1e-5)
         target_vec_xz_norm = torch.norm(target_vec_norm[:,[0,2]], dim=-1)  # projection on the xz plane
-        self.target_pitch = torch.atan2(target_vec_norm[:, 2], target_vec_norm[:, 0])
+        self.target_pitch = -torch.atan2(target_vec_norm[:, 2], target_vec_norm[:, 0])
         self.target_yaw = torch.atan2(target_vec_norm[:, 1], target_vec_xz_norm) + self.cfg.asset.gripper_pitch_offset
         # norm = torch.norm(self.next_target_pos_rel, dim=-1, keepdim=True)
         # target_vec_norm = self.next_target_pos_rel / (norm + 1e-5)
@@ -274,8 +274,8 @@ class Go1G(BaseTask):
         self.reset_idx(env_ids)
 
         # self.cur_goals = self._gather_cur_goals()
+        # self.next_goals = self._gather_cur_goals(future=1)
         self.cur_goals = self.box_states[:,:3]
-        self.next_goals = self._gather_cur_goals(future=1)
 
         self.update_depth_buffer()
 
@@ -316,7 +316,7 @@ class Go1G(BaseTask):
         height_cutoff = self.root_states[:, 2] < -0.25
 
         self.time_out_buf = self.episode_length_buf > self.max_episode_length # no terminal reward for time-outs
-        self.time_out_buf |= reach_goal_cutoff
+        # self.time_out_buf |= reach_goal_cutoff
 
         self.reset_buf |= self.time_out_buf
         self.reset_buf |= roll_cutoff

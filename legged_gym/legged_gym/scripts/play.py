@@ -67,8 +67,8 @@ def play(args):
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 0
     env_cfg.env.num_envs = 2 if not args.save else 64
-    env_cfg.env.episode_length_s = 10 # 60
-    env_cfg.commands.resampling_time = 2 # 60
+    env_cfg.env.episode_length_s = 12 # 60
+    env_cfg.commands.resampling_time = 4 # 60
     env_cfg.terrain.num_rows = 2
     env_cfg.terrain.num_cols = 1
     env_cfg.terrain.height = [0.02, 0.02]
@@ -115,13 +115,13 @@ def play(args):
     time_hist = []
     cmd_hist = []
     state_hist = []
-
+    ref_hist = []
     if args.web:
         web_viewer.setup(env)
 
     # load policy
     train_cfg.runner.resume = True
-    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model", return_log_dir=True)
+    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model_600.", return_log_dir=True)
     
     if args.use_jit:
         path = os.path.join(log_pth, "traced")
@@ -139,7 +139,7 @@ def play(args):
     infos = {}
     infos["depth"] = env.depth_buffer.clone().to(ppo_runner.device)[:, -1] if ppo_runner.if_depth else None
 
-    for i in range(5*int(env.max_episode_length)):
+    for i in range(3*int(env.max_episode_length)):
         if args.use_jit:
             if env.cfg.depth.use_camera:
                 if infos["depth"] is not None:
@@ -179,57 +179,69 @@ def play(args):
         # store data for plot
         cur_time = env.episode_length_buf[env.lookat_id].item() / 50
         time_hist.append(cur_time)
-        cmd_hist.append((env.commands[env.lookat_id, :]).tolist())
-        cur_state = env.root_states[env.lookat_id, 7:9].tolist() #base_lin_vel?
+        cmd_hist.append((env.target_position[env.lookat_id, :]).tolist())
+        cur_state = env.ee_pos[env.lookat_id, :].tolist()
         cur_state.append(env.yaw[env.lookat_id].tolist())
         cur_state.append(env.pitch[env.lookat_id].tolist())
         state_hist.append(cur_state)
+        ref = [env.target_yaw[env.lookat_id].tolist(),env.target_pitch[env.lookat_id].tolist()]
+        ref_hist.append(ref)
         print("----------\ntime:", cur_time, 
-              "\ncmd:", env.commands[env.lookat_id, :].tolist(),
+              "\ntarget_pos:", env.target_position[env.lookat_id, :].tolist(),
               "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
               "\nbase_pos:", env.root_states[env.lookat_id, :3].tolist(),
               "\nyaw:", env.yaw[env.lookat_id].tolist(), 
               "\ntarget_yaw:", env.target_yaw[env.lookat_id].tolist(), 
               "\npitch:", env.pitch[env.lookat_id].tolist(),
-              "\ntarget_pitch:", env.target_pitch[env.lookat_id].tolist())
+              "\ntarget_pitch:", env.target_pitch[env.lookat_id].tolist(),
+              "\ngripper open:", env.commands[env.lookat_id,-1]<0)
         
         id = env.lookat_id
-        if cur_time == 0 or i == 5*int(env.max_episode_length)-1:
+        if cur_time == 0 or i == 3*int(env.max_episode_length)-1:
             time_hist = np.array(time_hist[:-3])
             cmd_hist = np.array(cmd_hist[:-3])
             state_hist = np.array(state_hist[:-3])
-            fig,axs = plt.subplots(4,1,sharex=True)
-            axs[0].plot(time_hist,cmd_hist[:,0],linestyle='--',label='cmd_vx')
-            axs[0].plot(time_hist,state_hist[:,0],label='vx')
+            ref_hist = np.array(ref_hist[:-3])
+            fig,axs = plt.subplots(5,1,sharex=True)
+            axs[0].plot(time_hist,cmd_hist[:,0],linestyle='--',label='target_x')
+            axs[0].plot(time_hist,state_hist[:,0],label='x')
             axs[0].legend()
-            axs[0].set_ylabel('m/s')
-            axs[0].set_ylim((-0.1,1.6))
+            axs[0].set_ylabel('m')
+            # axs[0].set_ylim((-0.5,1.5))
 
-            axs[1].plot(time_hist,cmd_hist[:,1],linestyle='--',label='cmd_vy')
-            axs[1].plot(time_hist,state_hist[:,1],label='vy')    
+            axs[1].plot(time_hist,cmd_hist[:,1],linestyle='--',label='target_y')
+            axs[1].plot(time_hist,state_hist[:,1],label='y')    
             axs[1].legend()
-            axs[1].set_ylabel('m/s')
-            axs[1].set_ylim((-1,1))
+            axs[1].set_ylabel('m')
+            # axs[1].set_ylim((-1,1))
 
-            axs[2].plot(time_hist,cmd_hist[:,2],linestyle='--',label='cmd_yaw')
-            axs[2].plot(time_hist,state_hist[:,2],label='yaw') 
+            axs[2].plot(time_hist,cmd_hist[:,2],linestyle='--',label='target_z')
+            axs[2].plot(time_hist,state_hist[:,2],label='z') 
             axs[2].legend()
-            axs[2].set_ylabel('rad')  
-            axs[2].set_ylim((-1,1))
+            axs[2].set_ylabel('m')  
+            # axs[2].set_ylim((-1,1))
 
-            axs[3].plot(time_hist,cmd_hist[:,3],linestyle='--',label='cmd_pitch')
-            axs[3].plot(time_hist,state_hist[:,3],label='pitch')
+            axs[3].plot(time_hist,ref_hist[:,0],linestyle='--',label='ref_yaw')
+            axs[3].plot(time_hist,state_hist[:,3],label='yaw')
             axs[3].legend()
             axs[3].set_ylabel('rad')
-            axs[3].set_ylim((-0.7,0.7))
+            # axs[3].set_ylim((-0.7,0.7))
+
+            axs[4].plot(time_hist,ref_hist[:,1],linestyle='--',label='ref_pitch')
+            axs[4].plot(time_hist,state_hist[:,4],label='pitch')
+            axs[4].legend()
+            axs[4].set_ylabel('rad')
+            # axs[4].set_ylim((-0.7,0.7))
+
             plt.xlabel('time/s')
-            fig.suptitle(f"Commands (vx,vy,yaw,pitch,grasp(>0)):{np.round(cmd_hist[0,:], decimals=2)}")
+            # fig.suptitle(f"targetx,vy,yaw,pitch,grasp(>0)):{np.round(cmd_hist[0,:], decimals=2)}")
             plt.tight_layout() 
             plt.savefig(f'../figs/cmd_following_{i}.png')
 
             time_hist = []
             cmd_hist = []
             state_hist = []
+            ref_hist = []
 
 if __name__ == '__main__':
     EXPORT_POLICY = False
