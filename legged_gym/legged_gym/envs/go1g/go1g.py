@@ -33,7 +33,7 @@ from time import time
 from warnings import WarningMessage
 import numpy as np
 import os
-
+os.environ['CUDA_LAUNCH_BLOCKING']='1'
 from isaacgym.torch_utils import *
 from isaacgym import gymtorch, gymapi, gymutil
 
@@ -722,8 +722,8 @@ class Go1G(BaseTask):
         temp = self.terrain_goals[self.terrain_levels, self.terrain_types]
         last_col = temp[:, -1].unsqueeze(1)
         self.env_goals[:] = torch.cat((temp, last_col.repeat(1, self.cfg.env.num_future_goal_obs, 1)), dim=1)[:]
-        self.cur_goals = self._gather_cur_goals()
-        self.next_goals = self._gather_cur_goals(future=1)
+        # self.cur_goals = self._gather_cur_goals()
+        # self.next_goals = self._gather_cur_goals(future=1)
 
     #----------------------------------------
     def _init_buffers(self):
@@ -1104,8 +1104,8 @@ class Go1G(BaseTask):
             temp = self.terrain_goals[self.terrain_levels, self.terrain_types]
             last_col = temp[:, -1].unsqueeze(1)
             self.env_goals[:] = torch.cat((temp, last_col.repeat(1, self.cfg.env.num_future_goal_obs, 1)), dim=1)[:]
-            self.cur_goals = self._gather_cur_goals()
-            self.next_goals = self._gather_cur_goals(future=1)
+            # self.cur_goals = self._gather_cur_goals()
+            # self.next_goals = self._gather_cur_goals(future=1)
 
         else:
             self.custom_origins = False
