@@ -89,6 +89,9 @@ class Go1GRoughCfg( LeggedRobotCfg ):
 
         next_goal_threshold = 0.1
 
+        episode_length_s = 20 # episode length in seconds
+
+
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
         control_type = 'P'
@@ -168,6 +171,8 @@ class Go1GRoughCfg( LeggedRobotCfg ):
 
     class commands( LeggedRobotCfg.commands):
         num_commands = 4 # target_x, target_y, target_z, gripper close
+        resampling_time = 4. # time before command are changed[s]  # 6
+
         class max_ranges:
             target_x = [1, 2] # min max [m]
             target_y = [-1, 1]   # min max [m]

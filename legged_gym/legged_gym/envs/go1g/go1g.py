@@ -1320,6 +1320,7 @@ class Go1G(BaseTask):
     def _reward_tracking_gripper(self):
         close_right = self.commands[:, -1]*self.actions[:,-1]<0  # cmd>0 -- close -- action[-1]<0
         rew = close_right.float()
+        # print(f"rew_tracking_gripper:{rew}")
         return rew   
        
     def _reward_lin_vel_z(self):
