@@ -223,7 +223,8 @@ class Go1G(BaseTask):
         target_vec_norm = self.target_pos_rel / (norm + 1e-5)
         target_vec_xz_norm = torch.norm(target_vec_norm[:,[0,2]], dim=-1)  # projection on the xz plane
         self.target_pitch = -torch.atan2(target_vec_norm[:, 2], target_vec_norm[:, 0])
-        self.target_yaw = torch.atan2(target_vec_norm[:, 1], target_vec_xz_norm) + self.cfg.asset.gripper_pitch_offset
+        # self.target_yaw = torch.atan2(target_vec_norm[:, 1], target_vec_xz_norm) + self.cfg.asset.gripper_pitch_offset
+        self.target_yaw = torch.atan2(target_vec_norm[:, 1], target_vec_norm[:, 0]) + self.cfg.asset.gripper_pitch_offset
         # norm = torch.norm(self.next_target_pos_rel, dim=-1, keepdim=True)
         # target_vec_norm = self.next_target_pos_rel / (norm + 1e-5)
         # self.next_target_yaw = torch.atan2(target_vec_norm[:, 1], target_vec_norm[:, 0])

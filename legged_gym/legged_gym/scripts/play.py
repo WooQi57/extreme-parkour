@@ -121,7 +121,7 @@ def play(args):
 
     # load policy
     train_cfg.runner.resume = True
-    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="ee", return_log_dir=True)
+    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model", return_log_dir=True)
     
     if args.use_jit:
         path = os.path.join(log_pth, "traced")
