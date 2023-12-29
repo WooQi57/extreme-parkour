@@ -66,7 +66,7 @@ def play(args):
     # override some parameters for testing
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 0
-    env_cfg.env.num_envs = 2 if not args.save else 64
+    env_cfg.env.num_envs = 1 if not args.save else 64  # 2
     env_cfg.env.episode_length_s = 12 # 60
     env_cfg.commands.resampling_time = 4 # 60
     env_cfg.terrain.num_rows = 2
@@ -121,7 +121,7 @@ def play(args):
 
     # load policy
     train_cfg.runner.resume = True
-    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model", return_log_dir=True)
+    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="ee", return_log_dir=True)
     
     if args.use_jit:
         path = os.path.join(log_pth, "traced")
@@ -175,7 +175,7 @@ def play(args):
                         step_graphics=True,
                         render_all_camera_sensors=True,
                         wait_for_page_load=True)
-        web_viewer.write_vid()
+            web_viewer.write_vid()
         # store data for plot
         cur_time = env.episode_length_buf[env.lookat_id].item() / 50
         time_hist.append(cur_time)
