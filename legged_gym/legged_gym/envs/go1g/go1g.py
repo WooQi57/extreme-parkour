@@ -218,6 +218,7 @@ class Go1G(BaseTask):
         self.reach_goal_timer[self.reached_goal_ids] += 1
 
         self.target_pos_rel = self.target_position - self.root_states[:, :3]
+        self.base_target_pos = quat_rotate_inverse(self.base_quat,self.target_pos_rel)
 
         norm = torch.norm(self.target_pos_rel, dim=-1, keepdim=True)
         target_vec_norm = self.target_pos_rel / (norm + 1e-5)
@@ -407,12 +408,13 @@ class Go1G(BaseTask):
         if self.global_counter % 5 == 0:
             self.delta_yaw = self.target_yaw - self.yaw
             self.delta_pitch = self.target_pitch - self.pitch
+            self.delta_position = self.base_target_pos
         obs_buf = torch.cat((#skill_vector, 
                             self.base_ang_vel  * self.obs_scales.ang_vel,   #3
                             imu_obs,    #2
                             self.delta_yaw[:, None],    #1
                             self.delta_pitch[:, None],   #1
-                            self.target_position-self.ee_pos,  #3
+                            self.delta_position,  #3 local
                             self.commands[:,-1:],  #1
                             (self.env_class != 17).float()[:, None], #1
                             (self.env_class == 17).float()[:, None], #1

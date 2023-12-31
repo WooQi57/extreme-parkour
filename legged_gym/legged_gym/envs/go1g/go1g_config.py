@@ -176,7 +176,7 @@ class Go1GRoughCfg( LeggedRobotCfg ):
         class max_ranges:
             target_x = [1, 2] # min max [m]
             target_y = [-1, 1]   # min max [m]
-            target_z = [0, 0.3]    # min max [m]
+            target_z = [0, 0.6]    # min max [m]  higher
         lin_vel_clip = 0.2
         ang_clip = 0.05
         vx_max = 0.5
