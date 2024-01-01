@@ -122,30 +122,37 @@ class Go1GB(BaseTask):
         Args:
             actions (torch.Tensor): Tensor of shape (num_envs, num_actions_per_env)
         """
-        #wqwqwq
-        actions = self.policy(self.lowlevel_obs_buf.detach(), hist_encoding=True, scandots_latent=None)
-        actions = self.reindex(actions)
+        # highlevel actions
         actions.to(self.device)
         self.action_history_buf = torch.cat([self.action_history_buf[:, 1:].clone(), actions[:, None, :].clone()], dim=1)
-        if self.cfg.domain_rand.action_delay:
-            if self.global_counter % self.cfg.domain_rand.delay_update_global_steps == 0:
-                if len(self.cfg.domain_rand.action_curr_step) != 0:
-                    self.delay = torch.tensor(self.cfg.domain_rand.action_curr_step.pop(0), device=self.device, dtype=torch.float)
-            if self.viewer:
-                self.delay = torch.tensor(self.cfg.domain_rand.action_delay_view, device=self.device, dtype=torch.float)
-            indices = -self.delay -1
-            actions = self.action_history_buf[:, indices.long()] # delay for 1/50=20ms
+        clip_actions = 3
+        self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
+
+        # lowlevel actions
+        lowlevel_actions = self.policy(self.lowlevel_obs_buf.detach(), hist_encoding=True, scandots_latent=None)
+        lowlevel_actions = self.reindex(lowlevel_actions)
+        lowlevel_actions.to(self.device)
+        self.lowlevel_action_history_buf = torch.cat([self.lowlevel_action_history_buf[:, 1:].clone(), lowlevel_actions[:, None, :].clone()], dim=1)
+
+        # if self.cfg.domain_rand.action_delay:
+        #     if self.global_counter % self.cfg.domain_rand.delay_update_global_steps == 0:
+        #         if len(self.cfg.domain_rand.action_curr_step) != 0:
+        #             self.delay = torch.tensor(self.cfg.domain_rand.action_curr_step.pop(0), device=self.device, dtype=torch.float)
+        #     if self.viewer:
+        #         self.delay = torch.tensor(self.cfg.domain_rand.action_delay_view, device=self.device, dtype=torch.float)
+        #     indices = -self.delay -1
+        #     lowlevel_actions = self.lowlevel_action_history_buf[:, indices.long()] # delay for 1/50=20ms
 
         self.global_counter += 1
         self.total_env_steps_counter += 1
-        clip_actions = self.cfg.normalization.clip_actions / self.cfg.control.action_scale
-        self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
+        clip_lowlevel_actions = self.cfg.normalization.clip_actions / self.cfg.control.action_scale
+        self.lowlevel_actions = torch.clip(lowlevel_actions, -clip_lowlevel_actions, clip_lowlevel_actions).to(self.device)
         self.render()
 
         for _ in range(self.cfg.control.decimation):
-            actions_tmp = self.actions.clone()
-            actions = torch.cat((actions_tmp,actions_tmp[:,-1:]),dim=1)  # repeat last element to control both fingers
-            self.torques = self._compute_torques(actions).view(self.torques.shape)
+            lowlevel_actions_tmp = self.lowlevel_actions.clone()
+            lowlevel_actions = torch.cat((lowlevel_actions_tmp,lowlevel_actions_tmp[:,-1:]),dim=1)  # repeat last element to control both fingers
+            self.torques = self._compute_torques(lowlevel_actions).view(self.torques.shape)
             self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
             self.gym.simulate(self.sim)
             self.gym.fetch_results(self.sim, True)
@@ -154,14 +161,17 @@ class Go1GB(BaseTask):
 
         clip_obs = self.cfg.normalization.clip_observations
         self.lowlevel_obs_buf = torch.clip(self.lowlevel_obs_buf, -clip_obs, clip_obs)
-        if self.privileged_lowlevel_obs_buf is not None:
-            self.privileged_lowlevel_obs_buf = torch.clip(self.privileged_lowlevel_obs_buf, -clip_obs, clip_obs)
+        self.obs_buf = torch.clip(self.obs_buf, -clip_obs, clip_obs)
+
+        if self.privileged_obs_buf is not None:
+            self.privileged_obs_buf = torch.clip(self.privileged_obs_buf, -clip_obs, clip_obs)
         self.extras["delta_yaw_ok"] = self.delta_yaw < 0.6
         if self.cfg.depth.use_camera and self.global_counter % self.cfg.depth.update_interval == 0:
             self.extras["depth"] = self.depth_buffer[:, -2]  # have already selected last one
         else:
             self.extras["depth"] = None
-        return self.lowlevel_obs_buf, self.privileged_lowlevel_obs_buf, self.rew_buf, self.reset_buf, self.extras
+        
+        return self.lowlevel_obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def get_history_observations(self):
         return self.obs_history_buf
@@ -288,6 +298,7 @@ class Go1GB(BaseTask):
         self.compute_observations() # in some cases a simulation step might be required to refresh some obs (for example body positions)
 
         self.last_actions[:] = self.actions[:]
+        self.last_lowlevel_actions[:] = self.lowlevel_actions[:]
         self.last_dof_vel[:] = self.dof_vel[:]
         self.last_torques[:] = self.torques[:]
         self.last_root_vel[:] = self.root_states[:, 7:13]
@@ -357,14 +368,17 @@ class Go1GB(BaseTask):
 
         # reset buffers
         self.last_actions[env_ids] = 0.
+        self.last_lowlevel_actions[env_ids] = 0.        
         self.last_dof_vel[env_ids] = 0.
         self.last_torques[env_ids] = 0.
         self.last_root_vel[:] = 0.
         self.feet_air_time[env_ids] = 0.
         self.reset_buf[env_ids] = 1
         self.obs_history_buf[env_ids, :, :] = 0.  # reset obs history buffer TODO no 0s
+        self.lowlevel_obs_history_buf[env_ids, :, :] = 0.  # reset obs history buffer TODO no 0s        
         self.contact_buf[env_ids, :, :] = 0.
         self.action_history_buf[env_ids, :, :] = 0.
+        self.lowlevel_action_history_buf[env_ids, :, :] = 0.        
         self.cur_goal_idx[env_ids] = 0
         self.reach_goal_timer[env_ids] = 0
 
@@ -404,15 +418,21 @@ class Go1GB(BaseTask):
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
     
-    def compute_observations(self):
+    def compute_lowlevel_observations(self):
         """ 
         Computes observations
         """
         imu_obs = torch.stack((self.roll, self.pitch), dim=1)
-        if self.global_counter % 5 == 0:  # = actions[:,something] wqwqwq
+        if self.global_counter % 5 == 0:
             self.delta_yaw = self.target_yaw - self.yaw
             self.delta_pitch = self.target_pitch - self.pitch
             self.delta_position = self.base_target_pos
+
+        # if self.global_counter % 5 == 0:
+        #     self.delta_yaw = self.actions[:,0]  # self.target_yaw - self.yaw
+        #     self.delta_pitch = self.actions[:,1]  # self.target_pitch - self.pitch
+        #     self.delta_position = self.actions[:,2:5]  # self.base_target_pos
+        #     self.close_cmd = self.actions[:,-1]
 
         # replace real obs to the output of the highlevel policy
         lowlevel_obs_buf = torch.cat((#skill_vector, 
@@ -426,7 +446,7 @@ class Go1GB(BaseTask):
                             (self.env_class == 17).float()[:, None], #1
                             self.reindex((self.dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),  #13 contain no passive dof
                             self.reindex(self.dof_vel * self.obs_scales.dof_vel),   #13
-                            self.reindex(self.action_history_buf[:, -1]),   #13
+                            self.reindex(self.lowlevel_action_history_buf[:, -1]),   #13
                             self.reindex_feet(self.contact_filt.float()-0.5),   #4
                             ),dim=-1)
         priv_explicit = torch.cat((self.base_lin_vel * self.obs_scales.lin_vel,
@@ -440,16 +460,64 @@ class Go1GB(BaseTask):
         ), dim=-1)
         if self.cfg.terrain.measure_heights:
             heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.3 - self.measured_heights, -1, 1.)
-            self.lowlevel_obs_buf = torch.cat([lowlevel_obs_buf, heights, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
+            self.lowlevel_obs_buf = torch.cat([lowlevel_obs_buf, heights, priv_explicit, priv_latent, self.lowlevel_obs_history_buf.view(self.num_envs, -1)], dim=-1)
         else:
-            self.lowlevel_obs_buf = torch.cat([lowlevel_obs_buf, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
+            self.lowlevel_obs_buf = torch.cat([lowlevel_obs_buf, priv_explicit, priv_latent, self.lowlevel_obs_history_buf.view(self.num_envs, -1)], dim=-1)
         # lowlevel_obs_buf[:, 6:8] = 0  # mask yaw in proprioceptive history
-        self.obs_history_buf = torch.where(
+        self.lowlevel_obs_history_buf = torch.where(
             (self.episode_length_buf <= 1)[:, None, None], 
             torch.stack([lowlevel_obs_buf] * self.cfg.env.history_len, dim=1),
             torch.cat([
-                self.obs_history_buf[:, 1:],
+                self.lowlevel_obs_history_buf[:, 1:],
                 lowlevel_obs_buf.unsqueeze(1)
+            ], dim=1)
+        )
+        
+    def compute_observations(self):
+        """ 
+        Computes observations
+        """
+        imu_obs = torch.stack((self.roll, self.pitch), dim=1)
+        if self.global_counter % 5 == 0:  # = actions[:,something] wqwqwq
+            self.delta_yaw = self.target_yaw - self.yaw
+            self.delta_pitch = self.target_pitch - self.pitch
+            self.delta_position = self.base_target_pos
+
+        # replace real obs to the output of the highlevel policy
+        obs_buf = torch.cat((#skill_vector, 
+                            self.base_ang_vel  * self.obs_scales.ang_vel,   #3
+                            imu_obs,    #2
+                            self.delta_yaw[:, None],    #1
+                            self.delta_pitch[:, None],   #1
+                            self.delta_position,  #3 local
+                            self.commands[:,-1:],  #1
+                            (self.env_class != 17).float()[:, None], #1
+                            (self.env_class == 17).float()[:, None], #1
+                            self.reindex((self.dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),  #13 contain no passive dof
+                            self.reindex(self.dof_vel * self.obs_scales.dof_vel),   #13
+                            self.reindex(self.lowlevel_action_history_buf[:, -1]),   #13
+                            self.reindex_feet(self.contact_filt.float()-0.5),   #4
+                            ),dim=-1)
+        priv_explicit = torch.cat((self.base_lin_vel * self.obs_scales.lin_vel,
+                                   0 * self.base_lin_vel,
+                                   0 * self.base_lin_vel), dim=-1)
+        priv_latent = torch.cat((
+            self.mass_params_tensor,
+            self.friction_coeffs_tensor,
+            self.motor_strength[0] - 1, 
+            self.motor_strength[1] - 1
+        ), dim=-1)
+        if self.cfg.terrain.measure_heights:
+            heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.3 - self.measured_heights, -1, 1.)
+            self.obs_buf = torch.cat([obs_buf, heights, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
+        else:
+            self.obs_buf = torch.cat([obs_buf, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
+        self.obs_history_buf = torch.where(
+            (self.episode_length_buf <= 1)[:, None, None], 
+            torch.stack([obs_buf] * self.cfg.env.history_len, dim=1),
+            torch.cat([
+                self.obs_history_buf[:, 1:],
+                obs_buf.unsqueeze(1)
             ], dim=1)
         )
         self.contact_buf = torch.where(
@@ -460,8 +528,9 @@ class Go1GB(BaseTask):
                 self.contact_filt.float().unsqueeze(1)
             ], dim=1)
         )
+        self.compute_lowlevel_observations()
         
-        
+          
     def get_noisy_measurement(self, x, scale):
         if self.cfg.noise.add_noise:
             x = x + (2.0 * torch.rand_like(x) - 1) * scale * self.cfg.noise.noise_level
@@ -792,7 +861,9 @@ class Go1GB(BaseTask):
         self.p_gains = torch.zeros(self.num_actions+self.num_dummy_dof, dtype=torch.float, device=self.device, requires_grad=False)
         self.d_gains = torch.zeros(self.num_actions+self.num_dummy_dof, dtype=torch.float, device=self.device, requires_grad=False)
         self.actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        self.lowlevel_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.last_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        self.last_lowlevel_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)        
         self.last_dof_vel = torch.zeros_like(self.dof_vel)
         self.last_torques = torch.zeros_like(self.torques)
         self.last_root_vel = torch.zeros_like(self.root_states[:, 7:13])
@@ -803,7 +874,9 @@ class Go1GB(BaseTask):
         self.motor_strength = (str_rng[1] - str_rng[0]) * torch.rand(2, self.num_envs, self.num_actions+self.num_dummy_dof, dtype=torch.float, device=self.device, requires_grad=False) + str_rng[0]
         if self.cfg.env.history_encoding:
             self.obs_history_buf = torch.zeros(self.num_envs, self.cfg.env.history_len, self.cfg.env.n_proprio, device=self.device, dtype=torch.float)
+            self.lowlevel_obs_history_buf = torch.zeros(self.num_envs, self.cfg.env.history_len, self.cfg.env.n_proprio, device=self.device, dtype=torch.float)
         self.action_history_buf = torch.zeros(self.num_envs, self.cfg.domain_rand.action_buf_len, self.num_actions, device=self.device, dtype=torch.float)
+        self.lowlevel_action_history_buf = torch.zeros(self.num_envs, self.cfg.domain_rand.action_buf_len, self.num_actions, device=self.device, dtype=torch.float)
         self.contact_buf = torch.zeros(self.num_envs, self.cfg.env.contact_buf_len, 4, device=self.device, dtype=torch.float)
 
         self.commands = torch.zeros(self.num_envs, self.cfg.commands.num_commands, dtype=torch.float, device=self.device, requires_grad=False) # x vel, y vel, yaw vel, heading

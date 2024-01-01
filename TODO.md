@@ -70,7 +70,7 @@ low-level policy (v2, blind, gripper position command)
     box state
     robot state
     action_history_buf
-+ 4. update action freq:
+4. update action freq:
     just use the lowlevel obs freq
 + 5. action space(cat observation space for lowlevel):     
     delta_yaw
@@ -78,5 +78,6 @@ low-level policy (v2, blind, gripper position command)
     delta_position
     gripper state
 6. step and lowlevel step
-
+    action clip
 self.commands seems useless
+lowlevel things dimensions
