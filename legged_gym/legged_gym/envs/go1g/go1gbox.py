@@ -97,7 +97,7 @@ class Go1GB(BaseTask):
         self.height_samples = None
         self.debug_viz = True
         self.init_done = False
-        self.use_box = False
+        self.use_box = True
         self._parse_cfg(self.cfg)
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)  # calls create_sim
         self.num_dummy_dof = cfg.env.num_dummy_dof  # used only in simulation
@@ -122,7 +122,8 @@ class Go1GB(BaseTask):
         Args:
             actions (torch.Tensor): Tensor of shape (num_envs, num_actions_per_env)
         """
-        actions = self.policy(self.obs_buf.detach(), hist_encoding=True, scandots_latent=None)
+        #wqwqwq
+        actions = self.policy(self.lowlevel_obs_buf.detach(), hist_encoding=True, scandots_latent=None)
         actions = self.reindex(actions)
         actions.to(self.device)
         self.action_history_buf = torch.cat([self.action_history_buf[:, 1:].clone(), actions[:, None, :].clone()], dim=1)
@@ -152,15 +153,15 @@ class Go1GB(BaseTask):
         self.post_physics_step()
 
         clip_obs = self.cfg.normalization.clip_observations
-        self.obs_buf = torch.clip(self.obs_buf, -clip_obs, clip_obs)
-        if self.privileged_obs_buf is not None:
-            self.privileged_obs_buf = torch.clip(self.privileged_obs_buf, -clip_obs, clip_obs)
+        self.lowlevel_obs_buf = torch.clip(self.lowlevel_obs_buf, -clip_obs, clip_obs)
+        if self.privileged_lowlevel_obs_buf is not None:
+            self.privileged_lowlevel_obs_buf = torch.clip(self.privileged_lowlevel_obs_buf, -clip_obs, clip_obs)
         self.extras["delta_yaw_ok"] = self.delta_yaw < 0.6
         if self.cfg.depth.use_camera and self.global_counter % self.cfg.depth.update_interval == 0:
             self.extras["depth"] = self.depth_buffer[:, -2]  # have already selected last one
         else:
             self.extras["depth"] = None
-        return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
+        return self.lowlevel_obs_buf, self.privileged_lowlevel_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def get_history_observations(self):
         return self.obs_history_buf
@@ -214,9 +215,9 @@ class Go1GB(BaseTask):
         next_flag = self.reach_goal_timer > self.cfg.env.reach_goal_delay / self.dt
         self.cur_goal_idx[next_flag] += 1
         self.reach_goal_timer[next_flag] = 0
+        # update current goal(box position)
+        self.target_position = self.box_states[:,:3]
 
-        _target_position = self.commands[:,:2] + self.env_origins[:,:2]
-        self.target_position = torch.cat((_target_position, self.commands[:,2:3]), dim=1)
         self.reached_goal_ids = torch.norm(self.target_position-self.ee_pos, dim=1) < self.cfg.env.next_goal_threshold
         self.reach_goal_timer[self.reached_goal_ids] += 1
 
@@ -243,7 +244,7 @@ class Go1GB(BaseTask):
         self.gym.refresh_rigid_body_state_tensor(self.sim)
         self.gym.refresh_force_sensor_tensor(self.sim)
         self.root_states = self.all_root_states[self.robot_idxs,:]
-        self.box_states = self.all_root_states[self.box_idxs,:]  # box position
+        self.box_states = self.all_root_states[self.box_idxs,:]
 
         self.episode_length_buf += 1
         self.common_step_counter += 1
@@ -280,7 +281,7 @@ class Go1GB(BaseTask):
 
         # self.cur_goals = self._gather_cur_goals()
         # self.next_goals = self._gather_cur_goals(future=1)
-        self.cur_goals = self.box_states[:,:3]
+        self.cur_goals = self.box_states[:,:3]  # not used
 
         self.update_depth_buffer()
 
@@ -408,11 +409,13 @@ class Go1GB(BaseTask):
         Computes observations
         """
         imu_obs = torch.stack((self.roll, self.pitch), dim=1)
-        if self.global_counter % 5 == 0:
+        if self.global_counter % 5 == 0:  # = actions[:,something] wqwqwq
             self.delta_yaw = self.target_yaw - self.yaw
             self.delta_pitch = self.target_pitch - self.pitch
             self.delta_position = self.base_target_pos
-        obs_buf = torch.cat((#skill_vector, 
+
+        # replace real obs to the output of the highlevel policy
+        lowlevel_obs_buf = torch.cat((#skill_vector, 
                             self.base_ang_vel  * self.obs_scales.ang_vel,   #3
                             imu_obs,    #2
                             self.delta_yaw[:, None],    #1
@@ -437,19 +440,18 @@ class Go1GB(BaseTask):
         ), dim=-1)
         if self.cfg.terrain.measure_heights:
             heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.3 - self.measured_heights, -1, 1.)
-            self.obs_buf = torch.cat([obs_buf, heights, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
+            self.lowlevel_obs_buf = torch.cat([lowlevel_obs_buf, heights, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
         else:
-            self.obs_buf = torch.cat([obs_buf, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
-        obs_buf[:, 6:8] = 0  # mask yaw in proprioceptive history
+            self.lowlevel_obs_buf = torch.cat([lowlevel_obs_buf, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
+        # lowlevel_obs_buf[:, 6:8] = 0  # mask yaw in proprioceptive history
         self.obs_history_buf = torch.where(
             (self.episode_length_buf <= 1)[:, None, None], 
-            torch.stack([obs_buf] * self.cfg.env.history_len, dim=1),
+            torch.stack([lowlevel_obs_buf] * self.cfg.env.history_len, dim=1),
             torch.cat([
                 self.obs_history_buf[:, 1:],
-                obs_buf.unsqueeze(1)
+                lowlevel_obs_buf.unsqueeze(1)
             ], dim=1)
         )
-
         self.contact_buf = torch.where(
             (self.episode_length_buf <= 1)[:, None, None], 
             torch.stack([self.contact_filt.float()] * self.cfg.env.contact_buf_len, dim=1),
@@ -600,15 +602,16 @@ class Go1GB(BaseTask):
         self.commands[env_ids, 1] = torch_rand_float(self.command_ranges["target_y"][0], self.command_ranges["target_y"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["target_z"][0], self.command_ranges["target_z"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 3] = torch_rand_float(-1, 1,(len(env_ids), 1), device=self.device).squeeze(1)
-        # if self.cfg.commands.heading_command:
-        #     self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["heading"][0], self.command_ranges["heading"][1], (len(env_ids), 1), device=self.device).squeeze(1)
-        # else:
-        #     self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1], (len(env_ids), 1), device=self.device).squeeze(1)
-        #     self.commands[env_ids, 2] *= torch.abs(self.commands[env_ids, 2]) > self.cfg.commands.ang_vel_clip
 
-        # # set small commands to zero
-        # self.commands[env_ids, :2] *= torch.abs(self.commands[env_ids, :2]) > self.cfg.commands.lin_vel_clip
-        # self.commands[env_ids, 2:4] *= torch.abs(self.commands[env_ids, 2:4]) > self.cfg.commands.ang_clip
+        # reset target position
+        self.box_states[env_ids, :2] = self.commands[env_ids,:2] + self.env_origins[env_ids,:2]
+        self.box_states[env_ids, 2] = 0.1
+        root_ids_int32 = torch.tensor(self.box_idxs,device=self.device)[env_ids].to(dtype=torch.int32)
+        self.all_root_states[self.box_idxs,:] = self.box_states
+        self.gym.set_actor_root_state_tensor_indexed(self.sim,
+                                                     gymtorch.unwrap_tensor(self.all_root_states),
+                                                     gymtorch.unwrap_tensor(root_ids_int32), len(root_ids_int32))
+        
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.
@@ -687,7 +690,6 @@ class Go1GB(BaseTask):
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
         # get robot root state id
-        env_ids_int32 = env_ids.to(dtype=torch.int32)
         root_ids_int32 = torch.tensor(self.robot_idxs,device=self.device)[env_ids].to(dtype=torch.int32)
         self.all_root_states[self.robot_idxs,:] = self.root_states
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
@@ -739,6 +741,8 @@ class Go1GB(BaseTask):
         env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
         env_cfg.env.num_envs = self.num_envs
         env_cfg.env.create_sim = False
+        self.lowlevel_obs_buf = torch.zeros(self.num_envs, env_cfg.env.num_observations, device=self.device, dtype=torch.float)
+
         # prepare environment
         env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
 
@@ -765,6 +769,7 @@ class Go1GB(BaseTask):
         # create some wrapper tensors for different slices
         self.all_root_states = gymtorch.wrap_tensor(actor_root_state)
         self.root_states = self.all_root_states[self.robot_idxs,:]
+        self.box_states = self.all_root_states[self.box_idxs,:]
         # self.root_states = self.all_root_states.view(self.num_envs, -1, 13)[:, 0, :] # (num_envs, 13)
         if verbose:
             print(f"all_root_states:{self.all_root_states}")
@@ -1051,10 +1056,8 @@ class Go1GB(BaseTask):
                 box_size = 0.05
                 asset_options = gymapi.AssetOptions()
                 box_asset = self.gym.create_box(self.sim, box_size, box_size, box_size, asset_options)
-                box_pose.p = gymapi.Vec3(*(to_torch([self.cur_goals[i, 0],self.cur_goals[i, 1],0.5], device=self.device)))
+                box_pose.p = gymapi.Vec3(*(to_torch([0,0,0.5], device=self.device)))
                 box_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.random.uniform(-np.pi, np.pi))
-                # print(f"ori env:{self.env_origins[i]}")
-                # print(f"cur goal:{self.cur_goals[i,:]}")
                 box_handle = self.gym.create_actor(env_handle, box_asset, box_pose, "box", i, 0)
                 color = gymapi.Vec3(np.random.uniform(0, 1), np.random.uniform(0, 1), np.random.uniform(0, 1))
                 self.gym.set_rigid_body_color(env_handle, box_handle, 0, gymapi.MESH_VISUAL_AND_COLLISION, color)

@@ -61,7 +61,7 @@ low-level policy (v2, blind, gripper position command)
 3. commands resample
 
 ## 1.1
-1. load policy
++ 1. load policy
     based on play
     watch 000-10 name problem
 2. reward for picking up
@@ -70,10 +70,13 @@ low-level policy (v2, blind, gripper position command)
     box state
     robot state
     action_history_buf
-4. update action freq:
-    use self.action_history_buf
-5. action space:     
++ 4. update action freq:
+    just use the lowlevel obs freq
++ 5. action space(cat observation space for lowlevel):     
     delta_yaw
     delta_pitch
     delta_position
     gripper state
+6. step and lowlevel step
+
+self.commands seems useless
