@@ -91,7 +91,6 @@ class Go1GRoughCfg( LeggedRobotCfg ):
 
         episode_length_s = 20 # episode length in seconds
 
-
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
         control_type = 'P'

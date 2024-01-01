@@ -82,15 +82,16 @@ class BaseTask():
         self.extras = {}
 
         # create envs, sim and viewer
-        self.create_sim()
-        self.gym.prepare_sim(self.sim)
+        if cfg.env.create_sim:
+            self.create_sim()
+            self.gym.prepare_sim(self.sim)
 
         # todo: read from config
         self.enable_viewer_sync = True
         self.viewer = None
 
         # if running with a viewer, set up keyboard shortcuts and camera
-        if self.headless == False:
+        if self.headless == False and cfg.env.create_sim:
             # subscribe to keyboard shortcuts
             self.viewer = self.gym.create_viewer(
                 self.sim, gymapi.CameraProperties())

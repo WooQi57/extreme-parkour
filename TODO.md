@@ -59,3 +59,21 @@ low-level policy (v2, blind, gripper position command)
       correct pose
 2. observation
 3. commands resample
+
+## 1.1
+1. load policy
+    based on play
+    watch 000-10 name problem
+2. reward for picking up
+    tbd
+3. observation
+    box state
+    robot state
+    action_history_buf
+4. update action freq:
+    use self.action_history_buf
+5. action space:     
+    delta_yaw
+    delta_pitch
+    delta_position
+    gripper state

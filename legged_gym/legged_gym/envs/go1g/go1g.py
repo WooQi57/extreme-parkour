@@ -46,6 +46,7 @@ from legged_gym.envs.base.base_task import BaseTask
 from .gterrain import Terrain
 from legged_gym.utils.math import *
 from legged_gym.utils.helpers import class_to_dict
+from legged_gym.utils import  get_args, task_registry
 from scipy.spatial.transform import Rotation as R
 from .go1g_config import Go1GRoughCfg
 
@@ -99,6 +100,8 @@ class Go1G(BaseTask):
         self.use_box = False
         self._parse_cfg(self.cfg)
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)  # calls create_sim
+        if cfg.env.create_sim is False:
+            return
         self.num_dummy_dof = cfg.env.num_dummy_dof  # used only in simulation
 
         self.resize_transform = torchvision.transforms.Resize((self.cfg.depth.resized[1], self.cfg.depth.resized[0]), 

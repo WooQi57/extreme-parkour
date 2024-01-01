@@ -86,6 +86,9 @@ class LeggedRobotCfg(BaseConfig):
         reach_goal_delay = 0.1
         num_future_goal_obs = 2
 
+        create_sim = True
+
+
     class depth:
         use_camera = False
         camera_num_envs = 192
