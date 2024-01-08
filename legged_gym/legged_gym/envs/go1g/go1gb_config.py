@@ -75,14 +75,15 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
             'r_finger_joint': 0.0,    # [m]
         }
     class env(LeggedRobotCfg.env):
-        num_envs = 6144
-        num_actions = 13
+        num_envs = 3072 # 6144
+        num_actions = 6
+        # num_lowlevel_actions = 13
         num_dummy_dof = 1
         
         n_scan = 132
         n_priv = 3+3 +3
         n_priv_latent = 4 + 1 + 14 +14
-        n_proprio = 3 + 2 + 2 + 4 + 2 + 13*3 + 4
+        n_proprio = 5+6 #3 + 2 + 2 + 4 + 2 + 13*3 + 4
         history_len = 10
 
         num_observations = n_proprio + n_scan + history_len*n_proprio + n_priv_latent + n_priv #n_scan + n_proprio + n_priv #187 + 47 + 5 + 12 
@@ -118,28 +119,37 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
     class rewards( LeggedRobotCfg.rewards ):
         class scales:
             # tracking rewards
-            tracking_goal_vel = 1.5
+            # tracking_goal_vel = 1.5
             tracking_goal_pos = 1.5
-            tracking_yaw = 0.5  # 0.5
-            tracking_pitch = 0.5  # 0.5
-            tracking_gripper = 0.5
-            # regularization rewards
-            lin_vel_z = -1.0
-            ang_vel_xy = -0.05
-            orientation = -1.
-            dof_acc = -2.5e-7
-            collision = -10.
-            action_rate = -0.1
-            delta_torques = -1.0e-7
-            torques = -0.00001
-            hip_pos = -0.5
-            dof_error = -0.04
-            feet_stumble = -1
-            feet_edge = -1
+            # tracking_yaw = 0.5  # 0.5
+            # tracking_pitch = 0.5  # 0.5
+            # tracking_gripper = 0.5
+
+            # fit ground truth data
+            fit_truth = 0.5
+
+            # pickup rewards
+            pickup_box = 3*0
+            box_height = 2*0
+
+            # # regularization rewards
+            # lin_vel_z = -1.0
+            # ang_vel_xy = -0.05
+            # orientation = -1.
+            # dof_acc = -2.5e-7
+            # collision = -10.
+            # action_rate = -0.1
+            # delta_torques = -1.0e-7
+            # torques = -0.00001
+            # hip_pos = -0.5
+            # dof_error = -0.04
+            # feet_stumble = -1
+            # feet_edge = -1
 
         tracking_sigma = 0.2 # tracking reward = exp(-error^2/sigma)  0.2
         soft_dof_pos_limit = 0.9
         base_height_target = 0.25
+        box_max_height = 0.4
         # class scales( LeggedRobotCfg.rewards.scales ):
             # torques = -0.0002
             # dof_pos_limits = -10.0

@@ -258,6 +258,7 @@ class Go1G(BaseTask):
         self.roll, self.pitch, self.yaw = euler_from_quaternion(self.base_quat)
         hand_pos = self.rigid_body_states[:, self.finger_indices, :3]
         self.ee_pos = (self.rigid_body_states[:, self.finger_indices[0], :3]+self.rigid_body_states[:, self.finger_indices[1], :3])/2
+        # self.ee_pos = self.rigid_body_states[:, self.grasp_point_index, :3]
 
         if verbose:
             print(f"box pose:{self.box_states[:,:3]}")
@@ -1062,6 +1063,8 @@ class Go1G(BaseTask):
         self.finger_indices = torch.zeros(len(finger_names), dtype=torch.long, device=self.device, requires_grad=False)
         for i in range(len(finger_names)):
             self.finger_indices[i] = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], finger_names[i])
+        
+        self.grasp_point_index = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], 'gripper_grasp_point_link')
 
         self.penalised_contact_indices = torch.zeros(len(penalized_contact_names), dtype=torch.long, device=self.device, requires_grad=False)
         for i in range(len(penalized_contact_names)):

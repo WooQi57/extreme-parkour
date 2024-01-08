@@ -100,7 +100,7 @@ class Go1GB(BaseTask):
         self.use_box = True
         self._parse_cfg(self.cfg)
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)  # calls create_sim
-        self.num_dummy_dof = cfg.env.num_dummy_dof  # used only in simulation
+        self.num_dummy_dof = cfg.env.num_dummy_dof  # 1dof in gripper
 
         self.resize_transform = torchvision.transforms.Resize((self.cfg.depth.resized[1], self.cfg.depth.resized[0]), 
                                                               interpolation=torchvision.transforms.InterpolationMode.BICUBIC)
@@ -171,7 +171,7 @@ class Go1GB(BaseTask):
         else:
             self.extras["depth"] = None
         
-        return self.lowlevel_obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
+        return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def get_history_observations(self):
         return self.obs_history_buf
@@ -236,7 +236,7 @@ class Go1GB(BaseTask):
 
         norm = torch.norm(self.target_pos_rel, dim=-1, keepdim=True)
         target_vec_norm = self.target_pos_rel / (norm + 1e-5)
-        target_vec_xz_norm = torch.norm(target_vec_norm[:,[0,2]], dim=-1)  # projection on the xz plane
+        # target_vec_xz_norm = torch.norm(target_vec_norm[:,[0,2]], dim=-1)  # projection on the xz plane
         self.target_pitch = -torch.atan2(target_vec_norm[:, 2], target_vec_norm[:, 0])
         # self.target_yaw = torch.atan2(target_vec_norm[:, 1], target_vec_xz_norm) + self.cfg.asset.gripper_pitch_offset
         self.target_yaw = torch.atan2(target_vec_norm[:, 1], target_vec_norm[:, 0]) + self.cfg.asset.gripper_pitch_offset
@@ -269,11 +269,14 @@ class Go1GB(BaseTask):
         self.roll, self.pitch, self.yaw = euler_from_quaternion(self.base_quat)
         hand_pos = self.rigid_body_states[:, self.finger_indices, :3]
         self.ee_pos = (self.rigid_body_states[:, self.finger_indices[0], :3]+self.rigid_body_states[:, self.finger_indices[1], :3])/2
+        # self.ee_pos = self.rigid_body_states[:, self.grasp_point_index, :3]
 
         if verbose:
+            print(f"{self.grasp_point_index}")
             print(f"box pose:{self.box_states[:,:3]}")
             print(f"hand pose:{hand_pos}")        
             print(f"ee pose:{self.ee_pos}")        
+            print(f"ee pose0:{self.ee_pos0}")        
 
         contact = torch.norm(self.contact_forces[:, self.feet_indices], dim=-1) > 2.
         self.contact_filt = torch.logical_or(contact, self.last_contacts) 
@@ -318,7 +321,7 @@ class Go1GB(BaseTask):
         return vec[:, [1, 0, 3, 2]]
 
     def reindex(self, vec):
-        if self.num_actions==13:
+        if self.num_lowlevel_actions==13:
             return vec[:, [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8, 12]]
         else:
             return vec[:, [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]]
@@ -423,17 +426,22 @@ class Go1GB(BaseTask):
         Computes observations
         """
         imu_obs = torch.stack((self.roll, self.pitch), dim=1)
-        if self.global_counter % 5 == 0:
-            self.delta_yaw = self.target_yaw - self.yaw
-            self.delta_pitch = self.target_pitch - self.pitch
-            self.delta_position = self.base_target_pos
-
         # if self.global_counter % 5 == 0:
-        #     self.delta_yaw = self.actions[:,0]  # self.target_yaw - self.yaw
-        #     self.delta_pitch = self.actions[:,1]  # self.target_pitch - self.pitch
-        #     self.delta_position = self.actions[:,2:5]  # self.base_target_pos
-        #     self.close_cmd = self.actions[:,-1]
+        #     self.delta_yaw = self.target_yaw - self.yaw
+        #     self.delta_pitch = self.target_pitch - self.pitch
+        #     self.delta_position = self.base_target_pos
 
+        if self.global_counter % 5 == 0:
+            self.delta_yaw = self.actions[:,0]  # self.target_yaw - self.yaw
+            self.delta_pitch = self.actions[:,1]  # self.target_pitch - self.pitch
+            self.delta_position = self.actions[:,2:5]  # self.base_target_pos
+            self.close_cmd = self.actions[:,-1]
+
+        # real_delta_yaw = self.target_yaw - self.yaw
+        # real_delta_pitch = self.target_pitch - self.pitch
+        # real_delta_position = self.base_target_pos
+        # real_delta_position[:,0] = 3.0
+            
         # replace real obs to the output of the highlevel policy
         lowlevel_obs_buf = torch.cat((#skill_vector, 
                             self.base_ang_vel  * self.obs_scales.ang_vel,   #3
@@ -441,7 +449,7 @@ class Go1GB(BaseTask):
                             self.delta_yaw[:, None],    #1
                             self.delta_pitch[:, None],   #1
                             self.delta_position,  #3 local
-                            self.commands[:,-1:],  #1
+                            self.close_cmd[:,None],  #1
                             (self.env_class != 17).float()[:, None], #1
                             (self.env_class == 17).float()[:, None], #1
                             self.reindex((self.dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),  #13 contain no passive dof
@@ -478,25 +486,16 @@ class Go1GB(BaseTask):
         Computes observations
         """
         imu_obs = torch.stack((self.roll, self.pitch), dim=1)
-        if self.global_counter % 5 == 0:  # = actions[:,something] wqwqwq
-            self.delta_yaw = self.target_yaw - self.yaw
-            self.delta_pitch = self.target_pitch - self.pitch
-            self.delta_position = self.base_target_pos
+        self.real_delta_yaw = self.target_yaw - self.yaw
+        self.real_delta_pitch = self.target_pitch - self.pitch
+        self.real_delta_position = self.base_target_pos
 
         # replace real obs to the output of the highlevel policy
-        obs_buf = torch.cat((#skill_vector, 
-                            self.base_ang_vel  * self.obs_scales.ang_vel,   #3
-                            imu_obs,    #2
-                            self.delta_yaw[:, None],    #1
-                            self.delta_pitch[:, None],   #1
-                            self.delta_position,  #3 local
-                            self.commands[:,-1:],  #1
-                            (self.env_class != 17).float()[:, None], #1
-                            (self.env_class == 17).float()[:, None], #1
-                            self.reindex((self.dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),  #13 contain no passive dof
-                            self.reindex(self.dof_vel * self.obs_scales.dof_vel),   #13
-                            self.reindex(self.lowlevel_action_history_buf[:, -1]),   #13
-                            self.reindex_feet(self.contact_filt.float()-0.5),   #4
+        obs_buf = torch.cat((
+                            self.real_delta_yaw[:, None],    #1
+                            self.real_delta_pitch[:, None],   #1
+                            self.real_delta_position,  #3 local
+                            self.action_history_buf[:, -1]  # 6
                             ),dim=-1)
         priv_explicit = torch.cat((self.base_lin_vel * self.obs_scales.lin_vel,
                                    0 * self.base_lin_vel,
@@ -811,7 +810,8 @@ class Go1GB(BaseTask):
         env_cfg.env.num_envs = self.num_envs
         env_cfg.env.create_sim = False
         self.lowlevel_obs_buf = torch.zeros(self.num_envs, env_cfg.env.num_observations, device=self.device, dtype=torch.float)
-
+        self.num_lowlevel_actions = env_cfg.env.num_actions  # 13
+        self.lowlevel_n_proprio = env_cfg.env.n_proprio
         # prepare environment
         env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
 
@@ -857,13 +857,13 @@ class Go1GB(BaseTask):
         self.extras = {}
         self.gravity_vec = to_torch(get_axis_params(-1., self.up_axis_idx), device=self.device).repeat((self.num_envs, 1))  # contain box
         self.forward_vec = to_torch([1., 0., 0.], device=self.device).repeat((self.num_envs, 1))
-        self.torques = torch.zeros(self.num_envs, self.num_actions+self.num_dummy_dof, dtype=torch.float, device=self.device, requires_grad=False)
-        self.p_gains = torch.zeros(self.num_actions+self.num_dummy_dof, dtype=torch.float, device=self.device, requires_grad=False)
-        self.d_gains = torch.zeros(self.num_actions+self.num_dummy_dof, dtype=torch.float, device=self.device, requires_grad=False)
+        self.torques = torch.zeros(self.num_envs, self.num_lowlevel_actions+self.num_dummy_dof, dtype=torch.float, device=self.device, requires_grad=False)
+        self.p_gains = torch.zeros(self.num_lowlevel_actions+self.num_dummy_dof, dtype=torch.float, device=self.device, requires_grad=False)
+        self.d_gains = torch.zeros(self.num_lowlevel_actions+self.num_dummy_dof, dtype=torch.float, device=self.device, requires_grad=False)
         self.actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
-        self.lowlevel_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        self.lowlevel_actions = torch.zeros(self.num_envs, self.num_lowlevel_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.last_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
-        self.last_lowlevel_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)        
+        self.last_lowlevel_actions = torch.zeros(self.num_envs, self.num_lowlevel_actions, dtype=torch.float, device=self.device, requires_grad=False)        
         self.last_dof_vel = torch.zeros_like(self.dof_vel)
         self.last_torques = torch.zeros_like(self.torques)
         self.last_root_vel = torch.zeros_like(self.root_states[:, 7:13])
@@ -871,12 +871,12 @@ class Go1GB(BaseTask):
         self.reach_goal_timer = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
 
         str_rng = self.cfg.domain_rand.motor_strength_range
-        self.motor_strength = (str_rng[1] - str_rng[0]) * torch.rand(2, self.num_envs, self.num_actions+self.num_dummy_dof, dtype=torch.float, device=self.device, requires_grad=False) + str_rng[0]
-        if self.cfg.env.history_encoding:
+        self.motor_strength = (str_rng[1] - str_rng[0]) * torch.rand(2, self.num_envs, self.num_lowlevel_actions+self.num_dummy_dof, dtype=torch.float, device=self.device, requires_grad=False) + str_rng[0]
+        if self.cfg.env.history_encoding:  
             self.obs_history_buf = torch.zeros(self.num_envs, self.cfg.env.history_len, self.cfg.env.n_proprio, device=self.device, dtype=torch.float)
-            self.lowlevel_obs_history_buf = torch.zeros(self.num_envs, self.cfg.env.history_len, self.cfg.env.n_proprio, device=self.device, dtype=torch.float)
+            self.lowlevel_obs_history_buf = torch.zeros(self.num_envs, self.cfg.env.history_len, self.lowlevel_n_proprio, device=self.device, dtype=torch.float)
         self.action_history_buf = torch.zeros(self.num_envs, self.cfg.domain_rand.action_buf_len, self.num_actions, device=self.device, dtype=torch.float)
-        self.lowlevel_action_history_buf = torch.zeros(self.num_envs, self.cfg.domain_rand.action_buf_len, self.num_actions, device=self.device, dtype=torch.float)
+        self.lowlevel_action_history_buf = torch.zeros(self.num_envs, self.cfg.domain_rand.action_buf_len, self.num_lowlevel_actions, device=self.device, dtype=torch.float)
         self.contact_buf = torch.zeros(self.num_envs, self.cfg.env.contact_buf_len, 4, device=self.device, dtype=torch.float)
 
         self.commands = torch.zeros(self.num_envs, self.cfg.commands.num_commands, dtype=torch.float, device=self.device, requires_grad=False) # x vel, y vel, yaw vel, heading
@@ -1128,6 +1128,7 @@ class Go1GB(BaseTask):
                 box_pose = gymapi.Transform()
                 box_size = 0.05
                 asset_options = gymapi.AssetOptions()
+                asset_options.density = 300.
                 box_asset = self.gym.create_box(self.sim, box_size, box_size, box_size, asset_options)
                 box_pose.p = gymapi.Vec3(*(to_torch([0,0,0.5], device=self.device)))
                 box_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.random.uniform(-np.pi, np.pi))
@@ -1154,6 +1155,8 @@ class Go1GB(BaseTask):
         for i in range(len(finger_names)):
             self.finger_indices[i] = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], finger_names[i])
 
+        self.grasp_point_index = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], 'gripper_grasp_point_link')
+            
         self.penalised_contact_indices = torch.zeros(len(penalized_contact_names), dtype=torch.long, device=self.device, requires_grad=False)
         for i in range(len(penalized_contact_names)):
             self.penalised_contact_indices[i] = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], penalized_contact_names[i])
@@ -1391,7 +1394,29 @@ class Go1GB(BaseTask):
         return heights.view(self.num_envs, -1) * self.terrain.cfg.vertical_scale
 
     ################## parkour rewards ##################
-
+    def _reward_pickup_box(self):
+        box_height = self.box_states[:,2]
+        rew = (box_height > 0.03).float()
+        return rew
+    
+    def _reward_box_height(self):
+        box_height = self.box_states[:,2]
+        max_height = self.cfg.rewards.box_max_height
+        clip_height = torch.clip(box_height,0,max_height) 
+        rew = torch.exp(max_height-clip_height) 
+        return rew
+    
+    def _reward_fit_truth(self):
+        if hasattr(self, 'real_delta_position'):
+            fit_error = torch.sum(torch.square(self.real_delta_position - self.delta_position), dim=1)
+            fit_error += torch.square(self.real_delta_pitch - self.delta_pitch)
+            fit_error += torch.square(self.real_delta_yaw - self.delta_yaw)
+            rew = torch.exp(-fit_error)
+        else:
+            rew = 0
+        # print(f"rew_fit_truth:{rew}")
+        return rew
+    
     def _reward_tracking_goal_vel(self):
         norm = torch.norm(self.target_pos_rel[:,:2], dim=-1, keepdim=True)
         target_vec_norm = self.target_pos_rel[:,:2] / (norm + 1e-5)

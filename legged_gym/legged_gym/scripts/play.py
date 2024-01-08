@@ -186,15 +186,23 @@ def play(args):
         state_hist.append(cur_state)
         ref = [env.target_yaw[env.lookat_id].tolist(),env.target_pitch[env.lookat_id].tolist()]
         ref_hist.append(ref)
+
+
+        real_delta_yaw = env.target_yaw[env.lookat_id].tolist() - env.yaw[env.lookat_id].tolist()
+        real_delta_pitch = env.target_pitch[env.lookat_id].tolist() - env.pitch[env.lookat_id].tolist()
+
         print("----------\ntime:", cur_time, 
-              "\ntarget_pos:", env.target_position[env.lookat_id, :].tolist(),
-              "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
-              "\nbase_pos:", env.root_states[env.lookat_id, :3].tolist(),
-              "\nyaw:", env.yaw[env.lookat_id].tolist(), 
-              "\ntarget_yaw:", env.target_yaw[env.lookat_id].tolist(), 
-              "\npitch:", env.pitch[env.lookat_id].tolist(),
-              "\ntarget_pitch:", env.target_pitch[env.lookat_id].tolist(),
-              "\ngripper open:", env.commands[env.lookat_id,-1]<0)
+              "\nreal_delta_pos:", env.base_target_pos[env.lookat_id, :].tolist(),
+              "\nhighlevel_pos:", env.actions[env.lookat_id, 2:5].tolist(),
+              "\nreal_delta_yaw:", real_delta_yaw, 
+              "\nhighlevel_yaw:", env.actions[env.lookat_id, 0].tolist(),
+              "\nreal_delta_pitch:", real_delta_pitch,
+              "\nhighlevel_pitch:", env.actions[env.lookat_id, 1].tolist(),
+              "\nhighlevel_gripper open:", env.actions[env.lookat_id, 5]<0
+              )
+        
+            #     "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
+            #   "\nbase_pos:", env.root_states[env.lookat_id, :3].tolist(),
         
         id = env.lookat_id
         if cur_time == 0 or i == 3*int(env.max_episode_length)-1:
