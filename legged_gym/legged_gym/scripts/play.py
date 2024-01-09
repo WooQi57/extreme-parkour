@@ -67,8 +67,8 @@ def play(args):
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 0
     env_cfg.env.num_envs = 1 if not args.save else 64  # 2
-    env_cfg.env.episode_length_s = 12 # 60
-    env_cfg.commands.resampling_time = 4 # 60
+    env_cfg.env.episode_length_s = 18 # 60
+    env_cfg.commands.resampling_time = 6 # 60
     env_cfg.terrain.num_rows = 2
     env_cfg.terrain.num_cols = 1
     env_cfg.terrain.height = [0.02, 0.02]
@@ -198,11 +198,10 @@ def play(args):
               "\nhighlevel_yaw:", env.actions[env.lookat_id, 0].tolist(),
               "\nreal_delta_pitch:", real_delta_pitch,
               "\nhighlevel_pitch:", env.actions[env.lookat_id, 1].tolist(),
-              "\nhighlevel_gripper open:", env.actions[env.lookat_id, 5]<0
+              "\nhighlevel_gripper open:", env.actions[env.lookat_id, 5]<0,
+              "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
+              "\ndof_pos:",env.dof_pos
               )
-        
-            #     "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
-            #   "\nbase_pos:", env.root_states[env.lookat_id, :3].tolist(),
         
         id = env.lookat_id
         if cur_time == 0 or i == 3*int(env.max_episode_length)-1:

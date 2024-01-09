@@ -125,7 +125,7 @@ class Go1GB(BaseTask):
         # highlevel actions
         actions.to(self.device)
         self.action_history_buf = torch.cat([self.action_history_buf[:, 1:].clone(), actions[:, None, :].clone()], dim=1)
-        clip_actions = 3
+        clip_actions = 2
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
 
         # lowlevel actions
@@ -147,6 +147,7 @@ class Go1GB(BaseTask):
         self.total_env_steps_counter += 1
         clip_lowlevel_actions = self.cfg.normalization.clip_actions / self.cfg.control.action_scale
         self.lowlevel_actions = torch.clip(lowlevel_actions, -clip_lowlevel_actions, clip_lowlevel_actions).to(self.device)
+        self.lowlevel_actions[:,-1] = torch.clip(self.lowlevel_actions[:,-1], -1, 1).to(self.device)
         self.render()
 
         for _ in range(self.cfg.control.decimation):
@@ -1130,7 +1131,7 @@ class Go1GB(BaseTask):
                 asset_options = gymapi.AssetOptions()
                 asset_options.density = 300.
                 box_asset = self.gym.create_box(self.sim, box_size, box_size, box_size, asset_options)
-                box_pose.p = gymapi.Vec3(*(to_torch([0,0,0.5], device=self.device)))
+                box_pose.p = gymapi.Vec3(*(to_torch([0,0,0.03], device=self.device)))
                 box_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.random.uniform(-np.pi, np.pi))
                 box_handle = self.gym.create_actor(env_handle, box_asset, box_pose, "box", i, 0)
                 color = gymapi.Vec3(np.random.uniform(0, 1), np.random.uniform(0, 1), np.random.uniform(0, 1))
@@ -1396,14 +1397,17 @@ class Go1GB(BaseTask):
     ################## parkour rewards ##################
     def _reward_pickup_box(self):
         box_height = self.box_states[:,2]
-        rew = (box_height > 0.03).float()
+        rew = (box_height > 0.04).float()
+        # print(f"rew_pickup_box:{rew}")
+        # print(f"b h:{box_height}")
         return rew
     
     def _reward_box_height(self):
         box_height = self.box_states[:,2]
         max_height = self.cfg.rewards.box_max_height
         clip_height = torch.clip(box_height,0,max_height) 
-        rew = torch.exp(max_height-clip_height) 
+        rew = torch.exp((-max_height+clip_height)/self.cfg.rewards.pick_sigma) 
+        # print(f"rew_box_height:{rew}")
         return rew
     
     def _reward_fit_truth(self):

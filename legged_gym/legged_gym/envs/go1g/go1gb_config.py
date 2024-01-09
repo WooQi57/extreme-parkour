@@ -126,18 +126,18 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
             # tracking_gripper = 0.5
 
             # fit ground truth data
-            fit_truth = 0.5
+            fit_truth = 0.5  # 2.5 for approach
 
             # pickup rewards
-            pickup_box = 3*0
-            box_height = 2*0
+            pickup_box = 3
+            box_height = 2
 
-            # # regularization rewards
+            # regularization rewards
             # lin_vel_z = -1.0
             # ang_vel_xy = -0.05
             # orientation = -1.
             # dof_acc = -2.5e-7
-            # collision = -10.
+            collision = -1.
             # action_rate = -0.1
             # delta_torques = -1.0e-7
             # torques = -0.00001
@@ -147,6 +147,7 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
             # feet_edge = -1
 
         tracking_sigma = 0.2 # tracking reward = exp(-error^2/sigma)  0.2
+        pick_sigma = 0.075
         soft_dof_pos_limit = 0.9
         base_height_target = 0.25
         box_max_height = 0.4
@@ -197,7 +198,7 @@ class Go1GBRoughCfgPPO( LeggedRobotCfgPPO ):
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'rough_a1'
-        resume = False
+        resume = True
         max_iterations = 50000 # number of policy updates 50000
 
     class estimator( LeggedRobotCfgPPO.estimator):
