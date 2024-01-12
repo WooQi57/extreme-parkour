@@ -269,8 +269,8 @@ class Go1GB(BaseTask):
 
         self.roll, self.pitch, self.yaw = euler_from_quaternion(self.base_quat)
         hand_pos = self.rigid_body_states[:, self.finger_indices, :3]
-        self.ee_pos = (self.rigid_body_states[:, self.finger_indices[0], :3]+self.rigid_body_states[:, self.finger_indices[1], :3])/2
-        # self.ee_pos = self.rigid_body_states[:, self.grasp_point_index, :3]
+        # self.ee_pos = (self.rigid_body_states[:, self.finger_indices[0], :3]+self.rigid_body_states[:, self.finger_indices[1], :3])/2
+        self.ee_pos = self.rigid_body_states[:, self.grasp_point_index, :3]
 
         if verbose:
             print(f"{self.grasp_point_index}")

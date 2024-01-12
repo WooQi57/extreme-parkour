@@ -117,6 +117,9 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
 
         gripper_pitch_offset = 0
 
+        collapse_fixed_joints = False # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
+
+
     class rewards( LeggedRobotCfg.rewards ):
         class scales:
             # tracking rewards
