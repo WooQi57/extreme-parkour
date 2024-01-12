@@ -494,7 +494,7 @@
     <child link="l_finger_link"/>
     <origin rpy="0 0.523598 0" xyz="0.12 0.026 -0.13"/>
     <axis xyz="0 1 0"/>
-    <limit effort="1" lower="-0.015" upper="-0.001" />
+    <limit effort="10" lower="-0.025" upper="-0.001" />
 	    <!-- <limit lower="-0.04" upper="0.0" /> -->
   </joint>
   <link name="l_finger_link">
@@ -504,14 +504,14 @@
       <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
     </inertial>
     <visual>
-      <origin rpy="3.14159265359 0 -1.570796326795" xyz="0 -0.03 -0.065"/>
+      <!-- <origin rpy="3.14159265359 0 -1.570796326795" xyz="0 -0.03 -0.065"/>
       <geometry>
         <mesh filename="../meshes/finger.stl" scale="0.001 0.001 0.001"/>
-      </geometry>
-      <!-- <origin rpy="0 0 0" xyz="0.06 -0.03 -0.065"/>
-      <geometry>
-        <box size="0.08 0.02 0.05"/>
       </geometry> -->
+      <origin rpy="-1.570796326795 0 -1.570796326795" xyz="0.07 0.035 -0.065"/>
+      <geometry>
+        <box size="0.04 0.064 0.08"/>
+      </geometry>
       <material name="red"/>
     </visual>
     <collision>
@@ -520,9 +520,13 @@
       <geometry>
         <box size="0.08 0.02 0.05"/>
       </geometry> -->
-      <origin rpy="-1.570796326795 0 -1.570796326795" xyz="0 -0.03 -0.065"/>
+      <!-- <origin rpy="-1.570796326795 0 -1.570796326795" xyz="0 -0.03 -0.065"/>
       <geometry>
-        <mesh filename="../meshes/finger.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="../meshes/finger.stl" scale="0.001 0.001 0.001"/> -->
+      <!-- </geometry> -->
+      <origin rpy="-1.570796326795 0 -1.570796326795" xyz="0.07 0.035 -0.065"/>
+      <geometry>
+        <box size="0.04 0.064 0.08"/>
       </geometry>
 
     </collision>
@@ -532,7 +536,7 @@
     <child link="r_finger_link"/>
     <origin rpy="0 0.523598 0" xyz="0.12 -0.026 -0.13"/>
     <axis xyz="0 -1 0"/>
-    <limit effort="1" lower="-0.015" upper="-0.001" />
+    <limit effort="10" lower="-0.025" upper="-0.001" />
     <!-- <limit  lower="-1.0471975512" upper="1.0471975512" velocity="30.1"/> -->
   </joint>
   <link name="r_finger_link">
@@ -542,20 +546,26 @@
       <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
     </inertial>
     <visual>
-      <origin rpy="0 0 1.570796326795" xyz="0 0.03 -0.065"/>
+      <!-- <origin rpy="0 0 1.570796326795" xyz="0 0.03 -0.065"/>
       <geometry>
         <mesh filename="../meshes/finger.stl" scale="0.001 0.001 0.001"/>
-      </geometry>
-      <!-- <origin rpy="0 0 0" xyz="0.06 0.03 -0.065"/>
-      <geometry>
-        <box size="0.08 0.02 0.05"/>
       </geometry> -->
+      <origin rpy="1.570796326795 0 1.570796326795" xyz="0.07 -0.035 -0.065"/>
+      <geometry>
+        <!-- <mesh filename="../dae/finger.stl" scale="0.001 0.001 0.001"/> -->
+        <box size="0.04 0.064 0.08"/>
+      </geometry>
       <material name="red"/>
     </visual>
     <collision>
-      <origin rpy="1.570796326795 0 1.570796326795" xyz="0 0.03 -0.065"/>
+      <!-- <origin rpy="1.570796326795 0 1.570796326795" xyz="0 0.03 -0.065"/>
       <geometry>
         <mesh filename="../meshes/finger.stl" scale="0.001 0.001 0.001"/>
+      </geometry> -->
+      <origin rpy="1.570796326795 0 1.570796326795" xyz="0.07 -0.035 -0.065"/>
+      <geometry>
+        <!-- <mesh filename="../dae/finger.stl" scale="0.001 0.001 0.001"/> -->
+        <box size="0.04 0.064 0.08"/>
       </geometry>
       <!-- <origin rpy="0 0 0" xyz="0.06 0.03 -0.065"/>
       <geometry>

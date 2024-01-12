@@ -67,8 +67,8 @@ def play(args):
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 0
     env_cfg.env.num_envs = 1 if not args.save else 64  # 2
-    env_cfg.env.episode_length_s = 18 # 60
-    env_cfg.commands.resampling_time = 6 # 60
+    env_cfg.env.episode_length_s = 30 # 60
+    env_cfg.commands.resampling_time = 10 # 60
     env_cfg.terrain.num_rows = 2
     env_cfg.terrain.num_cols = 1
     env_cfg.terrain.height = [0.02, 0.02]

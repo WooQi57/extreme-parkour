@@ -1130,13 +1130,18 @@ class Go1GB(BaseTask):
                 box_size = 0.05
                 asset_options = gymapi.AssetOptions()
                 asset_options.density = 300.
+                # box_asset = self.gym.create_sphere(self.sim, box_size/2, asset_options)
                 box_asset = self.gym.create_box(self.sim, box_size, box_size, box_size, asset_options)
                 box_pose.p = gymapi.Vec3(*(to_torch([0,0,0.03], device=self.device)))
                 box_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.random.uniform(-np.pi, np.pi))
                 box_handle = self.gym.create_actor(env_handle, box_asset, box_pose, "box", i, 0)
                 color = gymapi.Vec3(np.random.uniform(0, 1), np.random.uniform(0, 1), np.random.uniform(0, 1))
                 self.gym.set_rigid_body_color(env_handle, box_handle, 0, gymapi.MESH_VISUAL_AND_COLLISION, color)
-                
+                box_props = self.gym.get_actor_rigid_shape_properties(env_handle, box_handle)
+                box_props[0].friction = 0.9 #0.5
+                box_props[0].rolling_friction = 0.9
+                self.gym.set_actor_rigid_shape_properties(env_handle, box_handle, box_props)
+
                 # get global index of box in root state tensor
                 box_idx = self.gym.get_actor_index(env_handle, box_handle, gymapi.DOMAIN_SIM)
                 # box_idx = gym.get_actor_rigid_body_index(env, box_handle, 0, gymapi.DOMAIN_SIM)
