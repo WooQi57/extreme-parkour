@@ -107,8 +107,8 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
 
     class asset( LeggedRobotCfg.asset ):
         # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go1/urdf/go1_new.urdf'
-        # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go1g/urdf/go1_gripper.urdf'
-        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2g_description_v4.urdf'
+        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go1g/urdf/go1_gripper.urdf'
+        # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2g_description_v4.urdf'
         foot_name = "foot"
         finger_name = "finger"
         penalize_contacts_on = ["thigh", "calf", "finger", "gripper"]
@@ -130,11 +130,11 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
             # tracking_gripper = 0.5
 
             # fit ground truth data
-            fit_truth = 0.5  # 2.5 for approach
+            fit_truth = 2.5  # 2.5 for approach else 0.5
 
-            # pickup rewards
-            pickup_box = 3
-            box_height = 2
+            # # pickup rewards no applicable for approaching
+            # pickup_box = 3
+            # box_height = 2
 
             # regularization rewards
             # lin_vel_z = -1.0
@@ -202,7 +202,7 @@ class Go1GBRoughCfgPPO( LeggedRobotCfgPPO ):
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'rough_a1'
-        resume = True
+        resume = False
         max_iterations = 50000 # number of policy updates 50000
 
     class estimator( LeggedRobotCfgPPO.estimator):

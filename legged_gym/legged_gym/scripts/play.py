@@ -67,8 +67,8 @@ def play(args):
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 0
     env_cfg.env.num_envs = 1 if not args.save else 64  # 2
-    env_cfg.env.episode_length_s = 30 # 60
-    env_cfg.commands.resampling_time = 10 # 60
+    env_cfg.env.episode_length_s = 12 # 60 30
+    env_cfg.commands.resampling_time = 4 # 60 10
     env_cfg.terrain.num_rows = 2
     env_cfg.terrain.num_cols = 1
     env_cfg.terrain.height = [0.02, 0.02]
@@ -116,6 +116,7 @@ def play(args):
     cmd_hist = []
     state_hist = []
     ref_hist = []
+    finger_force_hist = []
     if args.web:
         web_viewer.setup(env)
 
@@ -190,7 +191,8 @@ def play(args):
 
         real_delta_yaw = env.target_yaw[env.lookat_id].tolist() - env.yaw[env.lookat_id].tolist()
         real_delta_pitch = env.target_pitch[env.lookat_id].tolist() - env.pitch[env.lookat_id].tolist()
-
+        finger_force = torch.norm(env.contact_forces[env.lookat_id, env.finger_indices, :],dim=1).tolist()
+        finger_force_hist.append(finger_force)
         print("----------\ntime:", cur_time, 
               "\nreal_delta_pos:", env.base_target_pos[env.lookat_id, :].tolist(),
               "\nhighlevel_pos:", env.actions[env.lookat_id, 2:5].tolist(),
@@ -200,15 +202,19 @@ def play(args):
               "\nhighlevel_pitch:", env.actions[env.lookat_id, 1].tolist(),
               "\nhighlevel_gripper open:", env.actions[env.lookat_id, 5]<0,
               "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
-              "\ndof_pos:",env.dof_pos
+              "\nfinger_contact_force:",finger_force,
+              "\nfinger_position",[[round(x,2) for x in sublist] for sublist in env.rigid_body_states[env.lookat_id, env.finger_indices, :3].tolist()]
               )
+            #   "\ndof_pos:",env.dof_pos,
+            #   "\nbox_position:",[round(x,2) for x in env.box_states[env.lookat_id,:3].tolist()],
         
         id = env.lookat_id
-        if cur_time == 0 or i == 3*int(env.max_episode_length)-1:
+        if cur_time == 0 or i == 3*int(env.max_episode_length)-1:  #or (cur_time % env_cfg.commands.resampling_time)==0 
             time_hist = np.array(time_hist[:-3])
             cmd_hist = np.array(cmd_hist[:-3])
             state_hist = np.array(state_hist[:-3])
             ref_hist = np.array(ref_hist[:-3])
+            finger_force_hist = np.array(finger_force_hist[:-3])
             fig,axs = plt.subplots(5,1,sharex=True)
             axs[0].plot(time_hist,cmd_hist[:,0],linestyle='--',label='target_x')
             axs[0].plot(time_hist,state_hist[:,0],label='x')
@@ -240,15 +246,18 @@ def play(args):
             axs[4].set_ylabel('rad')
             # axs[4].set_ylim((-0.7,0.7))
 
+            plt.ylabel('force/N')
             plt.xlabel('time/s')
             # fig.suptitle(f"targetx,vy,yaw,pitch,grasp(>0)):{np.round(cmd_hist[0,:], decimals=2)}")
             plt.tight_layout() 
             plt.savefig(f'../figs/cmd_following_{i}.png')
+            # plt.savefig(f'../figs/force_{i}_{cur_time}.png')
 
             time_hist = []
             cmd_hist = []
             state_hist = []
             ref_hist = []
+            finger_force_hist = []
 
 if __name__ == '__main__':
     EXPORT_POLICY = False

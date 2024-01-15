@@ -1130,8 +1130,8 @@ class Go1GB(BaseTask):
                 box_size = 0.05
                 asset_options = gymapi.AssetOptions()
                 asset_options.density = 300.
-                # box_asset = self.gym.create_sphere(self.sim, box_size/2, asset_options)
-                box_asset = self.gym.create_box(self.sim, box_size, box_size, box_size, asset_options)
+                box_asset = self.gym.create_sphere(self.sim, box_size/2, asset_options)
+                # box_asset = self.gym.create_box(self.sim, box_size, box_size, box_size, asset_options)
                 box_pose.p = gymapi.Vec3(*(to_torch([0,0,0.03], device=self.device)))
                 box_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.random.uniform(-np.pi, np.pi))
                 box_handle = self.gym.create_actor(env_handle, box_asset, box_pose, "box", i, 0)
@@ -1147,11 +1147,13 @@ class Go1GB(BaseTask):
                 # box_idx = gym.get_actor_rigid_body_index(env, box_handle, 0, gymapi.DOMAIN_SIM)
                 self.box_idxs.append(box_idx)
 
+
         if verbose:
             print(f"robot_idxs:{self.robot_idxs}\nbox_idxs:{self.box_idxs}")
 
         if self.cfg.domain_rand.randomize_friction:
             self.friction_coeffs_tensor = self.friction_coeffs.to(self.device).to(torch.float).squeeze(-1)
+
 
         self.feet_indices = torch.zeros(len(feet_names), dtype=torch.long, device=self.device, requires_grad=False)
         for i in range(len(feet_names)):
@@ -1476,7 +1478,7 @@ class Go1GB(BaseTask):
         return torch.sum(torch.square((self.last_dof_vel - self.dof_vel) / self.dt), dim=1)
 
     def _reward_collision(self):
-        return torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)
+        return torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 10), dim=1)  # higher for gripper 0.1
 
     def _reward_action_rate(self):
         return torch.norm(self.last_actions - self.actions, dim=1)

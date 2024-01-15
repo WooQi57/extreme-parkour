@@ -105,7 +105,8 @@ class Go1GRoughCfg( LeggedRobotCfg ):
 
     class asset( LeggedRobotCfg.asset ):
         # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go1/urdf/go1_new.urdf'
-        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go1g/urdf/go1_gripper.urdf'
+        # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go1g/urdf/go1_gripper.urdf'
+        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2g_description_v4.urdf'
         foot_name = "foot"
         finger_name = "finger"
         penalize_contacts_on = ["thigh", "calf", "finger", "gripper"]
@@ -113,6 +114,7 @@ class Go1GRoughCfg( LeggedRobotCfg ):
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
 
         gripper_pitch_offset = 0
+        collapse_fixed_joints = False # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
 
     class rewards( LeggedRobotCfg.rewards ):
         class scales:

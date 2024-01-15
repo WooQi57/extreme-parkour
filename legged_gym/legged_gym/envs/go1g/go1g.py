@@ -257,8 +257,8 @@ class Go1G(BaseTask):
 
         self.roll, self.pitch, self.yaw = euler_from_quaternion(self.base_quat)
         hand_pos = self.rigid_body_states[:, self.finger_indices, :3]
-        self.ee_pos = (self.rigid_body_states[:, self.finger_indices[0], :3]+self.rigid_body_states[:, self.finger_indices[1], :3])/2
-        # self.ee_pos = self.rigid_body_states[:, self.grasp_point_index, :3]
+        # self.ee_pos = (self.rigid_body_states[:, self.finger_indices[0], :3]+self.rigid_body_states[:, self.finger_indices[1], :3])/2
+        self.ee_pos = self.rigid_body_states[:, self.grasp_point_index, :3]
 
         if verbose:
             print(f"box pose:{self.box_states[:,:3]}")
@@ -441,7 +441,7 @@ class Go1G(BaseTask):
             self.obs_buf = torch.cat([obs_buf, heights, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
         else:
             self.obs_buf = torch.cat([obs_buf, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
-        obs_buf[:, 6:8] = 0  # mask yaw in proprioceptive history
+        # obs_buf[:, 6:8] = 0  # mask yaw in proprioceptive history
         self.obs_history_buf = torch.where(
             (self.episode_length_buf <= 1)[:, None, None], 
             torch.stack([obs_buf] * self.cfg.env.history_len, dim=1),
