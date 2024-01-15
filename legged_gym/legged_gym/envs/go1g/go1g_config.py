@@ -101,7 +101,8 @@ class Go1GRoughCfg( LeggedRobotCfg ):
 
     class asset( LeggedRobotCfg.asset ):
         # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go1/urdf/go1_new.urdf'
-        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go1g/urdf/go1_gripper.urdf'
+        # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go1g/urdf/go1_gripper.urdf'
+        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2g_description_v4.urdf'
         foot_name = "foot"
         finger_name = "finger"
         penalize_contacts_on = ["thigh", "calf", "finger", "gripper"]
