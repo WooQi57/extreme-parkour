@@ -1478,7 +1478,7 @@ class Go1GB(BaseTask):
         return torch.sum(torch.square((self.last_dof_vel - self.dof_vel) / self.dt), dim=1)
 
     def _reward_collision(self):
-        return torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 10), dim=1)  # higher for gripper 0.1
+        return torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)  # higher for gripper 0.1
 
     def _reward_action_rate(self):
         return torch.norm(self.last_actions - self.actions, dim=1)
