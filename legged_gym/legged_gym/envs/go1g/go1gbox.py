@@ -1128,8 +1128,8 @@ class Go1GB(BaseTask):
                 box_size = 0.05
                 asset_options = gymapi.AssetOptions()
                 asset_options.density = 300.
-                # box_asset = self.gym.create_sphere(self.sim, box_size/2, asset_options)
-                box_asset = self.gym.create_box(self.sim, box_size, box_size, box_size, asset_options)
+                box_asset = self.gym.create_sphere(self.sim, box_size/2, asset_options)
+                # box_asset = self.gym.create_box(self.sim, box_size, box_size, box_size, asset_options)
                 box_pose.p = gymapi.Vec3(*(to_torch([0,0,0.03], device=self.device)))
                 box_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.random.uniform(-np.pi, np.pi))
                 box_handle = self.gym.create_actor(env_handle, box_asset, box_pose, "box", i, 0)
