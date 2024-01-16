@@ -185,13 +185,13 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
         num_goals = 1
 
     class commands( LeggedRobotCfg.commands):
-        num_commands = 4 # target_x, target_y, target_z, gripper close
         resampling_time = 4. # time before command are changed[s]  # 6
-
+        num_commands = 5 # default: lin_vel_x, lin_vel_y, yaw, pitch, gripper close
         class max_ranges:
-            target_x = [1, 2] # min max [m]
-            target_y = [-1, 1]   # min max [m]
-            target_z = [0, 0.6]    # min max [m]  higher
+            lin_vel_x = [0., 1.5] # min max [m/s]
+            lin_vel_y = [-0.5, 0.5]   # min max [m/s]
+            yaw = [-1, 1]    # min max [rad]
+            pitch = [-0.7, 0.7]  # min max [rad]
         lin_vel_clip = 0.2
         ang_clip = 0.05
         vx_max = 0.5
