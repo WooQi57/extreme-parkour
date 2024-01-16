@@ -433,10 +433,9 @@ class Go1GB(BaseTask):
         #     self.delta_position = self.base_target_pos
 
         if self.global_counter % 5 == 0:
-            self.delta_yaw = self.actions[:,0]  # self.target_yaw - self.yaw
-            self.delta_pitch = self.actions[:,1]  # self.target_pitch - self.pitch
-            self.delta_position = self.actions[:,2:5]  # self.base_target_pos
-            self.close_cmd = self.actions[:,-1]
+            self.delta_yaw = self.actions[:, 2] - self.yaw
+            self.delta_pitch = self.actions[:, 3] - self.pitch
+            self.highlevel_cmd = self.actions
 
         # real_delta_yaw = self.target_yaw - self.yaw
         # real_delta_pitch = self.target_pitch - self.pitch
@@ -449,8 +448,7 @@ class Go1GB(BaseTask):
                             imu_obs,    #2
                             self.delta_yaw[:, None],    #1
                             self.delta_pitch[:, None],   #1
-                            self.delta_position,  #3 local
-                            self.close_cmd[:,None],  #1
+                            self.highlevel_cmd,  #5
                             (self.env_class != 17).float()[:, None], #1
                             (self.env_class == 17).float()[:, None], #1
                             self.reindex((self.dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),  #13 contain no passive dof
@@ -496,7 +494,7 @@ class Go1GB(BaseTask):
                             self.real_delta_yaw[:, None],    #1
                             self.real_delta_pitch[:, None],   #1
                             self.real_delta_position,  #3 local
-                            self.action_history_buf[:, -1]  # 6
+                            self.action_history_buf[:, -1]  # 5
                             ),dim=-1)
         priv_explicit = torch.cat((self.base_lin_vel * self.obs_scales.lin_vel,
                                    0 * self.base_lin_vel,
@@ -818,7 +816,7 @@ class Go1GB(BaseTask):
 
         # load policy
         train_cfg.runner.resume = True
-        ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="lowlevel_ee", return_log_dir=True)
+        ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="lowlevel_pos", return_log_dir=True)
         self.policy = ppo_runner.get_inference_policy(device=self.device)
 
     def _init_buffers(self):
@@ -1130,8 +1128,8 @@ class Go1GB(BaseTask):
                 box_size = 0.05
                 asset_options = gymapi.AssetOptions()
                 asset_options.density = 300.
-                box_asset = self.gym.create_sphere(self.sim, box_size/2, asset_options)
-                # box_asset = self.gym.create_box(self.sim, box_size, box_size, box_size, asset_options)
+                # box_asset = self.gym.create_sphere(self.sim, box_size/2, asset_options)
+                box_asset = self.gym.create_box(self.sim, box_size, box_size, box_size, asset_options)
                 box_pose.p = gymapi.Vec3(*(to_torch([0,0,0.03], device=self.device)))
                 box_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.random.uniform(-np.pi, np.pi))
                 box_handle = self.gym.create_actor(env_handle, box_asset, box_pose, "box", i, 0)
@@ -1418,10 +1416,10 @@ class Go1GB(BaseTask):
         return rew
     
     def _reward_fit_truth(self):
-        if hasattr(self, 'real_delta_position'):
-            fit_error = torch.sum(torch.square(self.real_delta_position - self.delta_position), dim=1)
-            fit_error += torch.square(self.real_delta_pitch - self.delta_pitch)
-            fit_error += torch.square(self.real_delta_yaw - self.delta_yaw)
+        if hasattr(self, 'delta_pitch'):
+            # fit_error = torch.sum(torch.square(self.real_delta_position - self.delta_position), dim=1)
+            fit_error = torch.square(self.target_pitch - self.delta_pitch)
+            fit_error += torch.square(self.target_yaw - self.delta_yaw)
             rew = torch.exp(-fit_error)
         else:
             rew = 0

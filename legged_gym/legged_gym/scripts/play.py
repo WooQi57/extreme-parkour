@@ -200,7 +200,7 @@ def play(args):
               "\nhighlevel_yaw:", env.actions[env.lookat_id, 0].tolist(),
               "\nreal_delta_pitch:", real_delta_pitch,
               "\nhighlevel_pitch:", env.actions[env.lookat_id, 1].tolist(),
-              "\nhighlevel_gripper open:", env.actions[env.lookat_id, 5]<0,
+              "\nhighlevel_gripper open:", env.actions[env.lookat_id, -1]<0,
               "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
               "\nfinger_contact_force:",finger_force,
               "\nfinger_position",[[round(x,2) for x in sublist] for sublist in env.rigid_body_states[env.lookat_id, env.finger_indices, :3].tolist()]
