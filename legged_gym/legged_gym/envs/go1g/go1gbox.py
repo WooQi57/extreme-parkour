@@ -310,7 +310,7 @@ class Go1GB(BaseTask):
         if self.viewer and self.enable_viewer_sync and self.debug_viz:
             self.gym.clear_lines(self.viewer)
             # self._draw_height_samples()
-            self._draw_goals()
+            # self._draw_goals()
             # self._draw_feet()
             if self.cfg.depth.use_camera:
                 window_name = "Depth Image"
@@ -1415,6 +1415,13 @@ class Go1GB(BaseTask):
         clip_height = torch.clip(box_height,0,max_height) 
         rew = torch.exp((-max_height+clip_height)/self.cfg.rewards.pick_sigma) 
         # print(f"rew_box_height:{rew}")
+        return rew
+    
+    def _reward_box_vel(self):
+        box_xy_vel = self.box_states[:,7:9]
+        box_vel = torch.norm(box_xy_vel, dim=-1)
+        rew = (box_vel > 0.1).float()
+        # print(f"rew_box_vel:{rew}")
         return rew
     
     def _reward_fit_truth(self):
