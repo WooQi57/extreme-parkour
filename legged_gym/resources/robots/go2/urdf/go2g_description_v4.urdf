@@ -74,28 +74,28 @@ Stephen Brawner (brawner@gmail.com)
     </collision>
   </link>
 
-<link name="gripper_grasp_point_link">
-      <visual>
-        <origin rpy="0 0 0" xyz="0 0 0"/>
-        <geometry>
-          <sphere radius="0.001"/>
-        </geometry>
-        <material name="blue"/>
-      </visual>
-      <collision>
-        <origin rpy="0 0 0" xyz="0 0 0"/>
-        <geometry>
-          <empty/>
-        </geometry>
-      </collision>
-    </link>
-    <joint name="gripper_grasp_point_joint" type="fixed">
-      <parent link="gripper_link"/>
-      <child link="gripper_grasp_point_link"/>
-      <origin rpy="0 0 0" xyz="0.15 0.0 -0.225"/>
-        <axis xyz="0 -1 0"/>
-        <limit lower="0." upper="0.0" />
-    </joint>
+  <link name="gripper_grasp_point_link">
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <sphere radius="0.001"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <empty/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="gripper_grasp_point_joint" type="fixed">
+    <parent link="gripper_link"/>
+    <child link="gripper_grasp_point_link"/>
+    <origin rpy="0 0 0" xyz="0.19 0.0 -0.28"/>
+      <axis xyz="0 -1 0"/>
+      <limit lower="0." upper="0.0" />
+  </joint>
 
   <joint name="l_finger_joint" type="prismatic">
     <parent link="gripper_link"/>
@@ -267,7 +267,7 @@ Stephen Brawner (brawner@gmail.com)
         xyz="0 0 0"
         rpy="0 0 0" />
       <geometry>
-        <sphere radius="0.047" />
+        <sphere radius="0.0047" />
       </geometry>
     </collision>
   </link>

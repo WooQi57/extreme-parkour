@@ -339,12 +339,14 @@ class Go1GB(BaseTask):
         # pitch_cutoff = torch.abs(self.pitch) > 1.5
         reach_goal_cutoff = self.cur_goal_idx >= self.cfg.terrain.num_goals
         height_cutoff = self.root_states[:, 2] < -0.25
+        contact_cutoff = torch.sum(1.*(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 0.1), dim=1) > 0
 
         self.time_out_buf = self.episode_length_buf > self.max_episode_length # no terminal reward for time-outs
         # self.time_out_buf |= reach_goal_cutoff
 
         self.reset_buf |= self.time_out_buf
         self.reset_buf |= roll_cutoff
+        self.reset_buf |= contact_cutoff
         # self.reset_buf |= pitch_cutoff
         self.reset_buf |= height_cutoff
 

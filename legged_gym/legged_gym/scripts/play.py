@@ -122,7 +122,7 @@ def play(args):
 
     # load policy
     train_cfg.runner.resume = True
-    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model", return_log_dir=True)
+    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model_600.", return_log_dir=True)
     
     if args.use_jit:
         path = os.path.join(log_pth, "traced")
@@ -209,55 +209,55 @@ def play(args):
             #   "\nbox_position:",[round(x,2) for x in env.box_states[env.lookat_id,:3].tolist()],
         
         id = env.lookat_id
-        if cur_time == 0 or i == 3*int(env.max_episode_length)-1:  #or (cur_time % env_cfg.commands.resampling_time)==0 
-            time_hist = np.array(time_hist[:-3])
-            cmd_hist = np.array(cmd_hist[:-3])
-            state_hist = np.array(state_hist[:-3])
-            ref_hist = np.array(ref_hist[:-3])
-            finger_force_hist = np.array(finger_force_hist[:-3])
-            fig,axs = plt.subplots(5,1,sharex=True)
-            axs[0].plot(time_hist,cmd_hist[:,0],linestyle='--',label='target_x')
-            axs[0].plot(time_hist,state_hist[:,0],label='x')
-            axs[0].legend()
-            axs[0].set_ylabel('m')
-            # axs[0].set_ylim((-0.5,1.5))
+        # if cur_time == 0 or i == 3*int(env.max_episode_length)-1:  #or (cur_time % env_cfg.commands.resampling_time)==0 
+        #     time_hist = np.array(time_hist[:-3])
+        #     cmd_hist = np.array(cmd_hist[:-3])
+        #     state_hist = np.array(state_hist[:-3])
+        #     ref_hist = np.array(ref_hist[:-3])
+        #     finger_force_hist = np.array(finger_force_hist[:-3])
+        #     fig,axs = plt.subplots(5,1,sharex=True)
+        #     axs[0].plot(time_hist,cmd_hist[:,0],linestyle='--',label='target_x')
+        #     axs[0].plot(time_hist,state_hist[:,0],label='x')
+        #     axs[0].legend()
+        #     axs[0].set_ylabel('m')
+        #     # axs[0].set_ylim((-0.5,1.5))
 
-            axs[1].plot(time_hist,cmd_hist[:,1],linestyle='--',label='target_y')
-            axs[1].plot(time_hist,state_hist[:,1],label='y')    
-            axs[1].legend()
-            axs[1].set_ylabel('m')
-            # axs[1].set_ylim((-1,1))
+        #     axs[1].plot(time_hist,cmd_hist[:,1],linestyle='--',label='target_y')
+        #     axs[1].plot(time_hist,state_hist[:,1],label='y')    
+        #     axs[1].legend()
+        #     axs[1].set_ylabel('m')
+        #     # axs[1].set_ylim((-1,1))
 
-            axs[2].plot(time_hist,cmd_hist[:,2],linestyle='--',label='target_z')
-            axs[2].plot(time_hist,state_hist[:,2],label='z') 
-            axs[2].legend()
-            axs[2].set_ylabel('m')  
-            # axs[2].set_ylim((-1,1))
+        #     axs[2].plot(time_hist,cmd_hist[:,2],linestyle='--',label='target_z')
+        #     axs[2].plot(time_hist,state_hist[:,2],label='z') 
+        #     axs[2].legend()
+        #     axs[2].set_ylabel('m')  
+        #     # axs[2].set_ylim((-1,1))
 
-            axs[3].plot(time_hist,ref_hist[:,0],linestyle='--',label='ref_yaw')
-            axs[3].plot(time_hist,state_hist[:,3],label='yaw')
-            axs[3].legend()
-            axs[3].set_ylabel('rad')
-            # axs[3].set_ylim((-0.7,0.7))
+        #     axs[3].plot(time_hist,ref_hist[:,0],linestyle='--',label='ref_yaw')
+        #     axs[3].plot(time_hist,state_hist[:,3],label='yaw')
+        #     axs[3].legend()
+        #     axs[3].set_ylabel('rad')
+        #     # axs[3].set_ylim((-0.7,0.7))
 
-            axs[4].plot(time_hist,ref_hist[:,1],linestyle='--',label='ref_pitch')
-            axs[4].plot(time_hist,state_hist[:,4],label='pitch')
-            axs[4].legend()
-            axs[4].set_ylabel('rad')
-            # axs[4].set_ylim((-0.7,0.7))
+        #     axs[4].plot(time_hist,ref_hist[:,1],linestyle='--',label='ref_pitch')
+        #     axs[4].plot(time_hist,state_hist[:,4],label='pitch')
+        #     axs[4].legend()
+        #     axs[4].set_ylabel('rad')
+        #     # axs[4].set_ylim((-0.7,0.7))
 
-            plt.ylabel('force/N')
-            plt.xlabel('time/s')
-            # fig.suptitle(f"targetx,vy,yaw,pitch,grasp(>0)):{np.round(cmd_hist[0,:], decimals=2)}")
-            plt.tight_layout() 
-            plt.savefig(f'../figs/cmd_following_{i}.png')
-            # plt.savefig(f'../figs/force_{i}_{cur_time}.png')
+        #     plt.ylabel('force/N')
+        #     plt.xlabel('time/s')
+        #     # fig.suptitle(f"targetx,vy,yaw,pitch,grasp(>0)):{np.round(cmd_hist[0,:], decimals=2)}")
+        #     plt.tight_layout() 
+        #     plt.savefig(f'../figs/cmd_following_{i}.png')
+        #     # plt.savefig(f'../figs/force_{i}_{cur_time}.png')
 
-            time_hist = []
-            cmd_hist = []
-            state_hist = []
-            ref_hist = []
-            finger_force_hist = []
+        #     time_hist = []
+        #     cmd_hist = []
+        #     state_hist = []
+        #     ref_hist = []
+        #     finger_force_hist = []
 
 if __name__ == '__main__':
     EXPORT_POLICY = False
