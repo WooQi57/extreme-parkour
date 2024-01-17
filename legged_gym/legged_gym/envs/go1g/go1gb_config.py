@@ -130,12 +130,12 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
             # tracking_gripper = 0.5
 
             # fit ground truth data
-            fit_truth = 0.5  # 2.5 for approach else 0.5
+            fit_truth = 2.5  # 2.5 for approach else 0.5
 
-            # pickup rewards not applicable for approaching
-            pickup_box = 3
-            box_height = 2
-            box_vel = 2
+            # # pickup rewards not applicable for approaching
+            # pickup_box = 3
+            # box_height = 2
+            # box_vel = 2
 
             # regularization rewards
             # lin_vel_z = -1.0
