@@ -92,7 +92,8 @@ Stephen Brawner (brawner@gmail.com)
     <joint name="gripper_grasp_point_joint" type="fixed">
       <parent link="gripper_link"/>
       <child link="gripper_grasp_point_link"/>
-      <origin rpy="0 0 0" xyz="0.15 0.0 -0.225"/>
+      <origin rpy="0 0 0" xyz="0.19 0.0 -0.28"/>
+      <!-- <origin rpy="0 0 0" xyz="0.15 0.0 -0.225"/> -->
         <axis xyz="0 -1 0"/>
         <limit lower="0." upper="0.0" />
     </joint>

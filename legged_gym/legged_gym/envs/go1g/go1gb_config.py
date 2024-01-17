@@ -124,13 +124,13 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
         class scales:
             # tracking rewards
             # tracking_goal_vel = 1.5
-            tracking_goal_pos = 0.5 # 1.5 for approach else 0.5
+            tracking_goal_pos = 1.5 # 1.5 for approach else 0.5
             # tracking_yaw = 0.5  # 0.5
             # tracking_pitch = 0.5  # 0.5
             # tracking_gripper = 0.5
 
             # fit ground truth data
-            fit_truth = 0.5*0  # 2.5 for approach else 0.5
+            fit_truth = 0.5  # 2.5 for approach else 0.5
 
             # pickup rewards not applicable for approaching
             pickup_box = 3

@@ -338,9 +338,11 @@ class Go1GB(BaseTask):
 
         self.time_out_buf = self.episode_length_buf > self.max_episode_length # no terminal reward for time-outs
         # self.time_out_buf |= reach_goal_cutoff
+        contact_cutoff = torch.sum(1.*(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 0.1), dim=1) > 0
 
         self.reset_buf |= self.time_out_buf
         self.reset_buf |= roll_cutoff
+        self.reset_buf |= contact_cutoff
         # self.reset_buf |= pitch_cutoff
         self.reset_buf |= height_cutoff
 
