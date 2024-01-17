@@ -646,7 +646,7 @@ class Go1GB(BaseTask):
         """
         # resample commands in episodes
         env_ids = (self.episode_length_buf % int(self.cfg.commands.resampling_time / self.dt)==0)
-        self._resample_commands(env_ids.nonzero(as_tuple=False).flatten())
+        # self._resample_commands(env_ids.nonzero(as_tuple=False).flatten())
 
         if self.cfg.commands.heading_command:
             forward = quat_apply(self.base_quat, self.forward_vec)
@@ -1132,8 +1132,8 @@ class Go1GB(BaseTask):
                 box_size = 0.05
                 asset_options = gymapi.AssetOptions()
                 asset_options.density = 300.
-                box_asset = self.gym.create_sphere(self.sim, box_size/2, asset_options)
-                # box_asset = self.gym.create_box(self.sim, box_size, box_size, box_size, asset_options)
+                # box_asset = self.gym.create_sphere(self.sim, box_size/2, asset_options)
+                box_asset = self.gym.create_box(self.sim, box_size, box_size, box_size, asset_options)
                 box_pose.p = gymapi.Vec3(*(to_torch([0,0,0.03], device=self.device)))
                 box_pose.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 0, 1), np.random.uniform(-np.pi, np.pi))
                 box_handle = self.gym.create_actor(env_handle, box_asset, box_pose, "box", i, 0)

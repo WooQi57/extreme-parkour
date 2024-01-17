@@ -202,7 +202,7 @@ class Go1GBRoughCfgPPO( LeggedRobotCfgPPO ):
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'rough_a1'
-        resume = True
+        resume = False
         max_iterations = 50000 # number of policy updates 50000
 
     class estimator( LeggedRobotCfgPPO.estimator):
