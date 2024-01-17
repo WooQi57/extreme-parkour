@@ -192,6 +192,11 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
             lin_vel_y = [-0.5, 0.5]   # min max [m/s]
             yaw = [-1, 1]    # min max [rad]
             pitch = [-0.7, 0.7]  # min max [rad]
+            
+            target_x = [1, 2] # min max [m]
+            target_y = [-1, 1]   # min max [m]
+            target_z = [0, 0.6]    # min max [m]  higher
+            
         lin_vel_clip = 0.2
         ang_clip = 0.05
         vx_max = 0.5
