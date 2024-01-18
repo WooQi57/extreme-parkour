@@ -1464,7 +1464,13 @@ class Go1GB(BaseTask):
         rew = close_right.float()
         # print(f"rew_tracking_gripper:{rew}")
         return rew   
-       
+    
+    def _reward_tracking_gripper_open(self):
+        close_right = self.actions[:,-1] < 0  # cmd>0 -- close -- action[-1]<0
+        rew = close_right.float()
+        # print(f"rew_tracking_gripper:{rew}")
+        return rew   
+    
     def _reward_lin_vel_z(self):
         rew = torch.square(self.base_lin_vel[:, 2])
         rew[self.env_class != 17] *= 0.5
