@@ -192,7 +192,8 @@ def play(args):
         real_delta_yaw = env.target_yaw[env.lookat_id].tolist() - env.yaw[env.lookat_id].tolist()
         real_delta_pitch = env.target_pitch[env.lookat_id].tolist() - env.pitch[env.lookat_id].tolist()
         finger_force = torch.norm(env.contact_forces[env.lookat_id, env.finger_indices, :],dim=1).tolist()
-        finger_force_hist.append(finger_force)
+        finger_force = env.contact_forces[env.lookat_id, env.finger_indices, :].tolist()
+        # finger_force_hist.append(finger_force)
         print("----------\ntime:", cur_time, 
               "\nreal_delta_pos:", env.base_target_pos[env.lookat_id, :].tolist(),
               "\nhighlevel_vel:", env.actions[env.lookat_id, :2].tolist(),
