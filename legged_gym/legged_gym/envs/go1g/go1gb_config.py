@@ -136,7 +136,7 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
             # pickup rewards not applicable for approaching
             pickup_box = 3
             box_height = 2
-            # box_vel = 2
+            box_vel = 0.8
 
             # regularization rewards
             # lin_vel_z = -1.0

@@ -1422,7 +1422,8 @@ class Go1GB(BaseTask):
     def _reward_box_vel(self):
         box_xy_vel = self.box_states[:,7:9]
         box_vel = torch.norm(box_xy_vel, dim=-1)
-        rew = (box_vel > 0.1).float()
+        # rew = (box_vel > 0.1).float()
+        rew = torch.clip(box_vel,0,1.5)
         # print(f"rew_box_vel:{rew}")
         return rew
     
