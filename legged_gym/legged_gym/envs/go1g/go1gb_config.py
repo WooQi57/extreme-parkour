@@ -128,7 +128,7 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
             # tracking_yaw = 0.5  # 0.5
             # tracking_pitch = 0.5  # 0.5
             # tracking_gripper = 0.5
-            tracking_gripper_open = 0.5
+            tracking_gripper_open = 0.5  # for approach
 
             # fit ground truth data
             fit_truth = 2.5  # 2.5 for approach else 0.5

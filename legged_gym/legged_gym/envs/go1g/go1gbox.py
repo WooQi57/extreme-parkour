@@ -1471,8 +1471,8 @@ class Go1GB(BaseTask):
         return rew   
     
     def _reward_tracking_gripper_open(self):
-        if hasattr(self, 'real_delta_position'):
-            close_right = self.close_cmd > 0  # cmd>0 -- close -- action[-1]<0
+        if hasattr(self, 'close_cmd'):
+            close_right = self.close_cmd < 0  # cmd>0 -- close -- action[-1]<0
             rew = close_right.float()
         else:
             rew = 0
