@@ -272,6 +272,20 @@ class Go1GB(BaseTask):
         # self.ee_pos = (self.rigid_body_states[:, self.finger_indices[0], :3]+self.rigid_body_states[:, self.finger_indices[1], :3])/2
         self.ee_pos = self.rigid_body_states[:, self.grasp_point_index, :3]
 
+        # check if the object is between the fingers
+        if self.use_box:
+            box_pos = self.box_states[:,:3]
+            l_finger_pos = self.rigid_body_states[:, self.finger_indices[0], :3]
+            r_finger_pos = self.rigid_body_states[:, self.finger_indices[1], :3]
+            l_vec =  box_pos - l_finger_pos
+            r_vec =  box_pos - r_finger_pos
+            l_dot = torch.sum(l_vec*(r_finger_pos-l_finger_pos),dim=-1)
+            r_dot = torch.sum(r_vec*(l_finger_pos-r_finger_pos),dim=-1)
+            self.between_fingers = torch.logical_and(l_dot > 0, r_dot > 0).float()
+
+            in_scope = torch.sum((self.box_states[:,:3] - self.ee_pos)**2, dim=-1) < 0.05
+            self.ready_to_grasp = torch.logical_and(self.between_fingers, in_scope).float()
+
         if verbose:
             print(f"{self.grasp_point_index}")
             print(f"box pose:{self.box_states[:,:3]}")
@@ -439,6 +453,14 @@ class Go1GB(BaseTask):
             self.delta_pitch = self.actions[:,1]  # self.target_pitch - self.pitch
             self.delta_position = self.actions[:,2:5]  # self.base_target_pos
             self.close_cmd = self.actions[:,-1]
+
+            # if hasattr(self, 'ready_to_grasp'):
+            #     if self.ready_to_grasp:
+            #         self.close_cmd = torch.ones_like(self.actions[:,-1],device=self.device)
+            #     else:
+            #         self.close_cmd = -torch.ones_like(self.actions[:,-1],device=self.device)
+            # else:
+            #     self.close_cmd = -torch.ones_like(self.actions[:,-1],device=self.device)
 
         # real_delta_yaw = self.target_yaw - self.yaw
         # real_delta_pitch = self.target_pitch - self.pitch
@@ -646,7 +668,7 @@ class Go1GB(BaseTask):
         """
         # resample commands in episodes
         env_ids = (self.episode_length_buf % int(self.cfg.commands.resampling_time / self.dt)==0)
-        self._resample_commands(env_ids.nonzero(as_tuple=False).flatten())
+        # self._resample_commands(env_ids.nonzero(as_tuple=False).flatten())
 
         if self.cfg.commands.heading_command:
             forward = quat_apply(self.base_quat, self.forward_vec)
@@ -1067,7 +1089,6 @@ class Go1GB(BaseTask):
         feet_names = [s for s in body_names if self.cfg.asset.foot_name in s]
         finger_names = [s for s in body_names if self.cfg.asset.finger_name in s]
 
-
         for s in ["FR_foot", "FL_foot", "RR_foot", "RL_foot"]:
             feet_idx = self.gym.find_asset_rigid_body_index(robot_asset, s)
             sensor_pose = gymapi.Transform(gymapi.Vec3(0.0, 0.0, 0.0))
@@ -1142,6 +1163,7 @@ class Go1GB(BaseTask):
                 box_props = self.gym.get_actor_rigid_shape_properties(env_handle, box_handle)
                 box_props[0].friction = 0.9 #0.5
                 box_props[0].rolling_friction = 0.9
+                box_props[0].thickness = 0.01
                 self.gym.set_actor_rigid_shape_properties(env_handle, box_handle, box_props)
 
                 # get global index of box in root state tensor
@@ -1426,6 +1448,17 @@ class Go1GB(BaseTask):
         rew = torch.clip(box_vel,0,1.5)
         # print(f"rew_box_vel:{rew}")
         return rew
+    
+    def _reward_grasp(self):
+        if hasattr(self, 'close_cmd'):
+            rew = torch.logical_and(self.ready_to_grasp, self.close_cmd > 0).float()
+            rew += torch.logical_and(torch.logical_not(self.ready_to_grasp), torch.logical_not(self.close_cmd > 0)).float()
+            # print(f"ready to grasp:{self.ready_to_grasp}")
+            # print(f"rew_grasp:{rew}")
+        else:
+            rew = 0
+        return rew
+
     
     def _reward_fit_truth(self):
         if hasattr(self, 'real_delta_position'):

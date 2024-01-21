@@ -101,7 +101,8 @@ Stephen Brawner (brawner@gmail.com)
   <joint name="l_finger_joint" type="prismatic">
     <parent link="gripper_link"/>
     <child link="l_finger_link"/>
-    <origin rpy="0 0.523598 0" xyz="0.12 0.026 -0.13"/>
+    <!-- <origin rpy="0 0.523598 0" xyz="0.12 0.026 -0.13"/> -->
+    <origin rpy="0 -0.523598 0" xyz="0.08 0.026 -0.25"/>
     	<axis xyz="0 1 0"/>
 	    <limit lower="-0.04" upper="0.0" />
   </joint>
@@ -118,7 +119,7 @@ Stephen Brawner (brawner@gmail.com)
       </geometry> -->
       <origin rpy="-1.570796326795 0 -1.570796326795" xyz="0.07 0.035 -0.065"/>
       <geometry>
-        <box size="0.02 0.12 0.16"/>
+        <box size="0.04 0.12 0.16"/>
       </geometry>
 
       <material name="red"/>
@@ -126,7 +127,7 @@ Stephen Brawner (brawner@gmail.com)
     <collision>
       <origin rpy="-1.570796326795 0 -1.570796326795" xyz="0.07 0.035 -0.065"/>
       <geometry>
-        <box size="0.02 0.12 0.16"/>
+        <box size="0.04 0.12 0.16"/>
         <!-- <box size="0.04 0.064 0.08"/> -->
       </geometry>
       <!-- <origin rpy="-1.570796326795 0 -1.570796326795" xyz="0 -0.03 -0.065"/>
@@ -165,7 +166,8 @@ Stephen Brawner (brawner@gmail.com)
   <joint name="r_finger_joint" type="prismatic">
     <parent link="gripper_link"/>
     <child link="r_finger_link"/>
-    <origin rpy="0 0.523598 0" xyz="0.12 -0.026 -0.13"/>
+    <!-- <origin rpy="0 0.523598 0" xyz="0.12 -0.026 -0.13"/> -->
+    <origin rpy="0 -0.523598 0" xyz="0.08 -0.026 -0.25"/>
     	<axis xyz="0 -1 0"/>
 	    <limit lower="-0.04" upper="0.0" />
       <mimic joint="l_finger_joint" multiplier="1" offset="0" />
@@ -183,7 +185,7 @@ Stephen Brawner (brawner@gmail.com)
       </geometry> -->
       <origin rpy="1.570796326795 0 1.570796326795" xyz="0.07 -0.035 -0.065"/>
       <geometry>
-        <box size="0.02 0.12 0.16"/>
+        <box size="0.04 0.12 0.16"/>
       </geometry>
 
       <material name="red"/>
@@ -197,7 +199,8 @@ Stephen Brawner (brawner@gmail.com)
 
       <origin rpy="1.570796326795 0 1.570796326795" xyz="0.07 -0.035 -0.065"/>
       <geometry>
-        <box size="0.02 0.12 0.16"/>
+        <box size="0.04 0.12 0.16"/>
+        <!-- <box size="0.02 0.12 0.16"/> -->
         <!-- <box size="0.04 0.064 0.08"/> -->
       </geometry>
 

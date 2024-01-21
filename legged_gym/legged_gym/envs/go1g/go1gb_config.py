@@ -103,12 +103,12 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 0.25
         # decimation: Number of control action updates @ sim DT per policy DT
-        decimation = 4
+        decimation = 4  # 4
 
     class asset( LeggedRobotCfg.asset ):
         # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go1/urdf/go1_new.urdf'
         # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go1g/urdf/go1_gripper.urdf'
-        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2g_description_v4.urdf'
+        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2g_description_v5.urdf'
         foot_name = "foot"
         finger_name = "finger"
         penalize_contacts_on = ["thigh", "calf", "finger", "gripper"]
@@ -131,19 +131,20 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
             # tracking_gripper_open = 0.5  # for approach
 
             # fit ground truth data
-            fit_truth = 2.5*0  # 2.5 for approach else 0.5
+            fit_truth = 0.5  # 2.5 for approach else 0.5
 
             # pickup rewards not applicable for approaching
             pickup_box = 3
             box_height = 2
-            box_vel = 0.8
+            # box_vel = 0.8
+            grasp = 1
 
             # regularization rewards
             # lin_vel_z = -1.0
             # ang_vel_xy = -0.05
             # orientation = -1.
             # dof_acc = -2.5e-7
-            collision = -1.
+            collision = -1.*0
             # action_rate = -0.1
             # delta_torques = -1.0e-7
             # torques = -0.00001

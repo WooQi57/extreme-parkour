@@ -67,8 +67,8 @@ def play(args):
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 0
     env_cfg.env.num_envs = 1 if not args.save else 64  # 2
-    env_cfg.env.episode_length_s = 12 # 60 30 12
-    env_cfg.commands.resampling_time = 4 # 60 10 4
+    env_cfg.env.episode_length_s = 5 # 60 30 12
+    env_cfg.commands.resampling_time = 5 # 60 10 4
     env_cfg.terrain.num_rows = 2
     env_cfg.terrain.num_cols = 1
     env_cfg.terrain.height = [0.02, 0.02]
@@ -122,7 +122,7 @@ def play(args):
 
     # load policy
     train_cfg.runner.resume = True
-    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model", return_log_dir=True)
+    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model_1200.", return_log_dir=True)
     
     if args.use_jit:
         path = os.path.join(log_pth, "traced")
@@ -140,7 +140,7 @@ def play(args):
     infos = {}
     infos["depth"] = env.depth_buffer.clone().to(ppo_runner.device)[:, -1] if ppo_runner.if_depth else None
 
-    for i in range(3*int(env.max_episode_length)):
+    for i in range(10*int(env.max_episode_length)):
         if args.use_jit:
             if env.cfg.depth.use_camera:
                 if infos["depth"] is not None:
@@ -193,18 +193,18 @@ def play(args):
         real_delta_pitch = env.target_pitch[env.lookat_id].tolist() - env.pitch[env.lookat_id].tolist()
         finger_force = torch.norm(env.contact_forces[env.lookat_id, env.finger_indices, :],dim=1).tolist()
         finger_force_hist.append(finger_force)
-        print("----------\ntime:", cur_time, 
-              "\nreal_delta_pos:", env.base_target_pos[env.lookat_id, :].tolist(),
-              "\nhighlevel_pos:", env.actions[env.lookat_id, 2:5].tolist(),
-              "\nreal_delta_yaw:", real_delta_yaw, 
-              "\nhighlevel_yaw:", env.actions[env.lookat_id, 0].tolist(),
-              "\nreal_delta_pitch:", real_delta_pitch,
-              "\nhighlevel_pitch:", env.actions[env.lookat_id, 1].tolist(),
-              "\nhighlevel_gripper open:", env.actions[env.lookat_id, 5]<0,
-              "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
-              "\nfinger_contact_force:",finger_force,
-              "\nfinger_position",[[round(x,2) for x in sublist] for sublist in env.rigid_body_states[env.lookat_id, env.finger_indices, :3].tolist()]
-              )
+        # print("----------\ntime:", cur_time, 
+        #       "\nreal_delta_pos:", env.base_target_pos[env.lookat_id, :].tolist(),
+        #       "\nhighlevel_pos:", env.actions[env.lookat_id, 2:5].tolist(),
+        #       "\nreal_delta_yaw:", real_delta_yaw, 
+        #       "\nhighlevel_yaw:", env.actions[env.lookat_id, 0].tolist(),
+        #       "\nreal_delta_pitch:", real_delta_pitch,
+        #       "\nhighlevel_pitch:", env.actions[env.lookat_id, 1].tolist(),
+        #       "\nhighlevel_gripper open:", env.actions[env.lookat_id, 5]<0,
+        #       "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
+        #       "\nfinger_contact_force:",finger_force,
+        #       "\nfinger_position",[[round(x,2) for x in sublist] for sublist in env.rigid_body_states[env.lookat_id, env.finger_indices, :3].tolist()]
+        #       )
             #   "\ndof_pos:",env.dof_pos,
             #   "\nbox_position:",[round(x,2) for x in env.box_states[env.lookat_id,:3].tolist()],
         
