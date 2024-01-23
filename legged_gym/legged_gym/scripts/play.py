@@ -194,18 +194,19 @@ def play(args):
         finger_force = torch.norm(env.contact_forces[env.lookat_id, env.finger_indices, :],dim=1).tolist()
         finger_force = env.contact_forces[env.lookat_id, env.finger_indices, :].tolist()
         # finger_force_hist.append(finger_force)
-        print("----------\ntime:", cur_time, 
-              "\nreal_delta_pos:", env.base_target_pos[env.lookat_id, :].tolist(),
-              "\nhighlevel_vel:", env.actions[env.lookat_id, :2].tolist(),
-              "\nreal_delta_yaw:", real_delta_yaw, 
-              "\nhighlevel_yaw:", env.actions[env.lookat_id, 2].tolist(),
-              "\nreal_delta_pitch:", real_delta_pitch,
-              "\nhighlevel_pitch:", env.actions[env.lookat_id, 3].tolist(),
-              "\nhighlevel_gripper open:", env.actions[env.lookat_id, -1]<0,
-              "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
-              "\nfinger_contact_force:",finger_force,
-              "\nfinger_position",[[round(x,2) for x in sublist] for sublist in env.rigid_body_states[env.lookat_id, env.finger_indices, :3].tolist()]
-              )
+        # print("----------\ntime:", cur_time, 
+        #       "\nbase_target_pos:", env.base_target_pos[env.lookat_id, :].tolist(),
+        #       "\nreal_delta_pos:", env.target_pos_rel[env.lookat_id, :].tolist(),
+        #       "\nhighlevel_vel:", env.actions[env.lookat_id, :2].tolist(),
+        #       "\nreal_target_yaw:", env.target_yaw[env.lookat_id].tolist(), 
+        #       "\nhighlevel_yaw:", env.actions[env.lookat_id, 2].tolist(),
+        #       "\nreal_target_pitch:", env.target_pitch[env.lookat_id].tolist(),
+        #       "\nhighlevel_pitch:", env.actions[env.lookat_id, 3].tolist(),
+        #       "\nhighlevel_gripper open:", env.actions[env.lookat_id, -1]<0,
+        #       "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
+        #       "\nfinger_contact_force:",finger_force,
+        #       "\nfinger_position",[[round(x,2) for x in sublist] for sublist in env.rigid_body_states[env.lookat_id, env.finger_indices, :3].tolist()]
+        #       )
             #   "\ndof_pos:",env.dof_pos,
             #   "\nbox_position:",[round(x,2) for x in env.box_states[env.lookat_id,:3].tolist()],
         

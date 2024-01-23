@@ -83,14 +83,14 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
         n_scan = 132
         n_priv = 3+3 +3
         n_priv_latent = 4 + 1 + 14 +14
-        n_proprio = 5+5 #3 + 2 + 2 + 4 + 2 + 13*3 + 4
+        n_proprio = 6+5 #3 + 2 + 2 + 4 + 2 + 13*3 + 4
         history_len = 10
 
         num_observations = n_proprio + n_scan + history_len*n_proprio + n_priv_latent + n_priv #n_scan + n_proprio + n_priv #187 + 47 + 5 + 12 
 
         next_goal_threshold = 0.1
 
-        episode_length_s = 20 # episode length in seconds
+        episode_length_s = 10 # episode length in seconds 20
 
 
     class control( LeggedRobotCfg.control ):
@@ -129,20 +129,21 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
             # tracking_pitch = 0.5  # 0.5
             # tracking_gripper = 0.5
             # tracking_gripper_open = 0.5  # 0.5 for approach else 0.0
-
-            # fit ground truth data
-            fit_truth = 2.5*0  # 2.5 for approach else 0.5
+            grasp = 1
+            tracking_goal_pos_frac = 0.15  # 0.05
 
             # pickup rewards no applicable for approaching
-            pickup_box = 3
-            box_height = 2
+            pickup_box = 6 # 3
+            box_height = 10 # 2
 
             # regularization rewards
-            # lin_vel_z = -1.0
+            fit_truth = 2.5  # 2.5 for approach else 0.5 fit ground truth data: keep yaw and pitch reasonable
+            between_fingers = 0.05  # 0.05# lin_vel_z = -1.0
+            hold_still = 10
             # ang_vel_xy = -0.05
             # orientation = -1.
             # dof_acc = -2.5e-7
-            collision = -1.
+            collision = -1.*0
             # action_rate = -0.1
             # delta_torques = -1.0e-7
             # torques = -0.00001
@@ -155,7 +156,7 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
         pick_sigma = 0.075
         soft_dof_pos_limit = 0.9
         base_height_target = 0.25
-        box_max_height = 0.4
+        box_max_height = 0.25
         # class scales( LeggedRobotCfg.rewards.scales ):
             # torques = -0.0002
             # dof_pos_limits = -10.0
@@ -194,8 +195,8 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
             yaw = [-1, 1]    # min max [rad]
             pitch = [-0.7, 0.7]  # min max [rad]
             
-            target_x = [1, 2] # min max [m]
-            target_y = [-1, 1]   # min max [m]
+            target_x = [0.5, 1.] # min max [m]  1 1.5
+            target_y = [-0.25, 0.25]   # min max [m] -0.5 0.5
             target_z = [0, 0.6]    # min max [m]  higher
             
         lin_vel_clip = 0.2
@@ -208,7 +209,7 @@ class Go1GBRoughCfgPPO( LeggedRobotCfgPPO ):
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'rough_a1'
-        resume = True
+        resume = False
         max_iterations = 50000 # number of policy updates 50000
 
     class estimator( LeggedRobotCfgPPO.estimator):

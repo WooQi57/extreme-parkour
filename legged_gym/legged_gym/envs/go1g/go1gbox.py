@@ -260,7 +260,7 @@ class Go1GB(BaseTask):
         self.gym.refresh_force_sensor_tensor(self.sim)
         self.root_states = self.all_root_states[self.robot_idxs,:]
         self.box_states = self.all_root_states[self.box_idxs,:]
-
+        # print(f"force_sensor_tensor:{torch.norm(self.force_sensor_tensor[:,:,:3],dim=-1)}")
         self.episode_length_buf += 1
         self.common_step_counter += 1
 
@@ -282,6 +282,20 @@ class Go1GB(BaseTask):
             print(f"hand pose:{hand_pos}")        
             print(f"ee pose:{self.ee_pos}")        
             print(f"ee pose0:{self.ee_pos0}")        
+
+        # check if the object is between the fingers
+        if self.use_box:
+            box_pos = self.box_states[:,:3]
+            l_finger_pos = self.rigid_body_states[:, self.finger_indices[0], :3]
+            r_finger_pos = self.rigid_body_states[:, self.finger_indices[1], :3]
+            l_vec =  box_pos - l_finger_pos
+            r_vec =  box_pos - r_finger_pos
+            l_dot = torch.sum(l_vec*(r_finger_pos-l_finger_pos),dim=-1)
+            r_dot = torch.sum(r_vec*(l_finger_pos-r_finger_pos),dim=-1)
+            self.between_fingers = torch.logical_and(l_dot > 0, r_dot > 0).float()
+
+            self.in_scope = torch.norm(self.box_states[:,:3] - self.ee_pos, dim=-1) < 0.05
+            self.ready_to_grasp = torch.logical_and(self.between_fingers, self.in_scope).float()
 
         contact = torch.norm(self.contact_forces[:, self.feet_indices], dim=-1) > 2.
         self.contact_filt = torch.logical_or(contact, self.last_contacts) 
@@ -500,6 +514,7 @@ class Go1GB(BaseTask):
                             self.real_delta_yaw[:, None],    #1
                             self.real_delta_pitch[:, None],   #1
                             self.real_delta_position,  #3 local
+                            self.ready_to_grasp[:, None],  # 1
                             self.action_history_buf[:, -1]  # 5
                             ),dim=-1)
         priv_explicit = torch.cat((self.base_lin_vel * self.obs_scales.lin_vel,
@@ -854,7 +869,8 @@ class Go1GB(BaseTask):
         self.dof_vel = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 1]
         self.base_quat = self.root_states[:, 3:7]
 
-        self.force_sensor_tensor = gymtorch.wrap_tensor(force_sensor_tensor).view(self.num_envs, 4, 6) # for feet only, see create_env()
+        # self.force_sensor_tensor = gymtorch.wrap_tensor(force_sensor_tensor).view(self.num_envs, 4, 6) # for feet only, see create_env()
+        self.force_sensor_tensor = gymtorch.wrap_tensor(force_sensor_tensor).view(self.num_envs, 6, 6) # for feet only, see create_env()
         self.contact_forces = gymtorch.wrap_tensor(net_contact_forces).view(self.num_envs, -1, 3) # shape: num_envs, num_bodies, xyz axis
 
         # initialize some data used later on
@@ -872,6 +888,7 @@ class Go1GB(BaseTask):
         self.last_dof_vel = torch.zeros_like(self.dof_vel)
         self.last_torques = torch.zeros_like(self.torques)
         self.last_root_vel = torch.zeros_like(self.root_states[:, 7:13])
+        self.ready_to_grasp = torch.zeros(self.num_envs, 1, dtype=torch.int32, device=self.device)
 
         self.reach_goal_timer = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
 
@@ -1068,6 +1085,12 @@ class Go1GB(BaseTask):
         self.num_dofs = len(self.dof_names)
         feet_names = [s for s in body_names if self.cfg.asset.foot_name in s]
         finger_names = [s for s in body_names if self.cfg.asset.finger_name in s]
+
+        for s in finger_names:
+            finger_idx = self.gym.find_asset_rigid_body_index(robot_asset, s)
+            sensor_pose = gymapi.Transform(gymapi.Vec3(0.0, 0.0, 0.0))
+            self.gym.create_asset_force_sensor(robot_asset, finger_idx, sensor_pose)
+
 
 
         for s in ["FR_foot", "FL_foot", "RR_foot", "RL_foot"]:
@@ -1409,6 +1432,7 @@ class Go1GB(BaseTask):
     def _reward_pickup_box(self):
         box_height = self.box_states[:,2]
         rew = (box_height > 0.04).float()
+        rew *= self.ready_to_grasp
         # print(f"rew_pickup_box:{rew}")
         # print(f"b h:{box_height}")
         return rew
@@ -1417,20 +1441,34 @@ class Go1GB(BaseTask):
         box_height = self.box_states[:,2]
         max_height = self.cfg.rewards.box_max_height
         clip_height = torch.clip(box_height,0,max_height) 
-        rew = torch.exp((-max_height+clip_height)/self.cfg.rewards.pick_sigma) 
+        rew = torch.exp(-torch.abs(max_height-box_height)/self.cfg.rewards.pick_sigma) 
+        rew *= self.ready_to_grasp
         # print(f"rew_box_height:{rew}")
         return rew
     
     def _reward_fit_truth(self):
         if hasattr(self, 'delta_pitch'):
             # fit_error = torch.sum(torch.square(self.real_delta_position - self.delta_position), dim=1)
-            fit_error = torch.square(self.target_pitch - self.delta_pitch)
-            fit_error += torch.square(self.target_yaw - self.delta_yaw)
+            fit_error = torch.square(self.target_pitch - self.actions[:, 3])
+            fit_error += torch.square(self.target_yaw - self.actions[:, 2])
             rew = torch.exp(-fit_error)
         else:
             rew = 0
         # print(f"rew_fit_truth:{rew}")
         return rew
+    
+    def _reward_between_fingers(self):
+        rew = self.between_fingers
+        # print(f"rew_between_fingers:{rew}")
+        return rew
+    
+    def _reward_hold_still(self):
+        rew = torch.exp(-torch.norm(self.actions[:, :2],dim=-1))-0.2  # -exp(-1.5)
+        # rew = (torch.norm(self.actions[:, :2],dim=-1)<0.02).float()
+        rew *= self.ready_to_grasp
+        # print(f"rew_hold_still:{rew}")
+        return rew
+
     
     def _reward_tracking_goal_vel(self):
         norm = torch.norm(self.target_pos_rel[:,:2], dim=-1, keepdim=True)
@@ -1447,6 +1485,10 @@ class Go1GB(BaseTask):
         rew = torch.exp(-ee_error/self.cfg.rewards.tracking_sigma)
         # rew = 1/(ee_error+0.2)
         # print(f"rew_tracking_goal_pos:{rew}")
+        return rew
+    
+    def _reward_tracking_goal_pos_frac(self):
+        rew = 1/(torch.norm(self.target_position - self.ee_pos, dim=-1) + 1e-3)
         return rew
     
     def _reward_tracking_yaw(self):
@@ -1470,6 +1512,15 @@ class Go1GB(BaseTask):
         rew = close_right.float()
         # print(f"rew_tracking_gripper:{rew}")
         return rew   
+    
+    def _reward_grasp(self):
+        rew = 10*torch.logical_and(self.ready_to_grasp, self.actions[:,-1] > 0).float()
+        rew += torch.logical_and(torch.logical_not(self.ready_to_grasp), torch.logical_not(self.actions[:,-1] > 0)).float()
+        # print(f"ready to grasp:{self.ready_to_grasp}")
+        # print(f"between_fingers:{self.between_fingers}")
+        # print(f"in_scope:{self.in_scope}")
+        # print(f"rew_grasp:{rew}")
+        return rew
     
     def _reward_lin_vel_z(self):
         rew = torch.square(self.base_lin_vel[:, 2])

@@ -92,7 +92,7 @@ Stephen Brawner (brawner@gmail.com)
   <joint name="gripper_grasp_point_joint" type="fixed">
     <parent link="gripper_link"/>
     <child link="gripper_grasp_point_link"/>
-    <origin rpy="0 0 0" xyz="0.19 0.0 -0.28"/>
+    <origin rpy="0 0 0" xyz="0.16 0.0 -0.26"/>
       <axis xyz="0 -1 0"/>
       <limit lower="0." upper="0.0" />
   </joint>
@@ -102,7 +102,7 @@ Stephen Brawner (brawner@gmail.com)
     <child link="l_finger_link"/>
     <origin rpy="0 0.523598 0" xyz="0.12 0.026 -0.13"/>
     	<axis xyz="0 1 0"/>
-	    <limit lower="-0.04" upper="0.0" />
+	    <limit lower="-0.04" upper="0.0" effort="10"/>
   </joint>
   <link name="l_finger_link">
     <inertial>
@@ -121,7 +121,7 @@ Stephen Brawner (brawner@gmail.com)
       <!-- <origin rpy="-1.570796326795 0 -1.570796326795" xyz="0 -0.03 -0.065"/> -->
       <origin rpy="-1.570796326795 0 -1.570796326795" xyz="0.07 0.035 -0.065"/>
       <geometry>
-        <box size="0.02 0.12 0.16"/>
+        <box size="0.03 0.064 0.08"/>
         <!-- <box size="0.04 0.064 0.08"/> -->
         <!-- <box size="0.02 0.032 0.04" xyz="-0.065 0 0.07"/> -->
         <!-- <mesh filename="../dae/finger.stl" scale="0.001 0.001 0.001"/> -->
@@ -157,7 +157,7 @@ Stephen Brawner (brawner@gmail.com)
     <child link="r_finger_link"/>
     <origin rpy="0 0.523598 0" xyz="0.12 -0.026 -0.13"/>
     	<axis xyz="0 -1 0"/>
-	    <limit lower="-0.04" upper="0.0" />
+	    <limit lower="-0.04" upper="0.0" effort="10"/>
       <mimic joint="l_finger_joint" multiplier="1" offset="0" />
   </joint>
   <link name="r_finger_link">
@@ -180,7 +180,9 @@ Stephen Brawner (brawner@gmail.com)
       <geometry>
         <!-- <mesh filename="../dae/finger.stl" scale="0.001 0.001 0.001"/> -->
         <!-- <box size="0.04 0.064 0.08"/> -->
-        <box size="0.02 0.12 0.16"/>
+        <!-- <box size="0.02 0.12 0.16"/> -->
+        <box size="0.03 0.064 0.08"/>
+        
       </geometry>
 
     </collision>

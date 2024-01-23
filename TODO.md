@@ -84,3 +84,8 @@ low-level policy (v2, blind, gripper position command)
 
 self.commands seems useless
 lowlevel things dimensions
+
+
+## 1.22
+1. clip pos lowlevel actions
+2. lowlevel add backoff
