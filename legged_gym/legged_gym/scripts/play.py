@@ -44,6 +44,7 @@ import statistics
 import faulthandler
 from copy import deepcopy
 import matplotlib.pyplot as plt
+from matplotlib.pyplot import MultipleLocator
 from time import time, sleep
 from legged_gym.utils import webviewer
 
@@ -67,8 +68,8 @@ def play(args):
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 0
     env_cfg.env.num_envs = 2 if not args.save else 64
-    env_cfg.env.episode_length_s = 10 # 60
-    env_cfg.commands.resampling_time = 2 # 60
+    env_cfg.env.episode_length_s = 8 # 60 10
+    env_cfg.commands.resampling_time = 8 # 60 2
     env_cfg.terrain.num_rows = 2
     env_cfg.terrain.num_cols = 1
     env_cfg.terrain.height = [0.02, 0.02]
@@ -121,7 +122,7 @@ def play(args):
 
     # load policy
     train_cfg.runner.resume = True
-    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model", return_log_dir=True)
+    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="pos", return_log_dir=True)
     
     if args.use_jit:
         path = os.path.join(log_pth, "traced")
@@ -184,45 +185,61 @@ def play(args):
         cur_state.append(env.yaw[env.lookat_id].tolist())
         cur_state.append(env.pitch[env.lookat_id].tolist())
         state_hist.append(cur_state)
-        print("time:", cur_time, 
-              "cmd", env.commands[env.lookat_id, :],
-              "lin vel", env.root_states[env.lookat_id, 7:10],
-              "yaw", env.yaw[env.lookat_id], 
-              "pitch", env.pitch[env.lookat_id])
+
+        err = env.commands[env.lookat_id, :-1].clone()
+        err[:2] -= env.root_states[env.lookat_id, 7:9]
+        err[2] -= env.yaw[env.lookat_id]
+        err[3] -= env.pitch[env.lookat_id]
+        # print("time:", cur_time, 
+        #       "cmd", env.commands[env.lookat_id, :],
+        #       "lin vel", env.root_states[env.lookat_id, 7:10],
+        #       "yaw", env.yaw[env.lookat_id], 
+        #       "pitch", env.pitch[env.lookat_id])
+
+        print(err)
         
         id = env.lookat_id
         if cur_time == 0 or i == 5*int(env.max_episode_length)-1:
             time_hist = np.array(time_hist[:-3])
             cmd_hist = np.array(cmd_hist[:-3])
             state_hist = np.array(state_hist[:-3])
-            fig,axs = plt.subplots(4,1,sharex=True)
-            axs[0].plot(time_hist,cmd_hist[:,0],linestyle='--',label='cmd_vx')
-            axs[0].plot(time_hist,state_hist[:,0],label='vx')
-            axs[0].legend()
-            axs[0].set_ylabel('m/s')
-            axs[0].set_ylim((-0.1,1.6))
+            # fig,axs = plt.subplots(1,1,sharex=True)
 
-            axs[1].plot(time_hist,cmd_hist[:,1],linestyle='--',label='cmd_vy')
-            axs[1].plot(time_hist,state_hist[:,1],label='vy')    
-            axs[1].legend()
-            axs[1].set_ylabel('m/s')
-            axs[1].set_ylim((-1,1))
+            for j in range(4):
+                plt.figure()
+                plt.plot(time_hist,cmd_hist[:,j]-state_hist[:,j],linestyle='--',label=f'err_{j}')
+                plt.legend()
+                ax=plt.gca()
+                y_major_locator=MultipleLocator(0.05)
+                ax.yaxis.set_major_locator(y_major_locator)
+                plt.ylim(-0.15,0.15)
+                # axs[0].plot(time_hist,cmd_hist[:,0],linestyle='--',label='cmd_vx')
+                # axs[0].plot(time_hist,state_hist[:,0],label='vx')
+                # axs[0].legend()
+                # axs[0].set_ylabel('m/s')
+                # axs[0].set_ylim((-0.1,1.6))
 
-            axs[2].plot(time_hist,cmd_hist[:,2],linestyle='--',label='cmd_yaw')
-            axs[2].plot(time_hist,state_hist[:,2],label='yaw') 
-            axs[2].legend()
-            axs[2].set_ylabel('rad')  
-            axs[2].set_ylim((-1,1))
+                # axs[1].plot(time_hist,cmd_hist[:,1],linestyle='--',label='cmd_vy')
+                # axs[1].plot(time_hist,state_hist[:,1],label='vy')    
+                # axs[1].legend()
+                # axs[1].set_ylabel('m/s')
+                # axs[1].set_ylim((-1,1))
 
-            axs[3].plot(time_hist,cmd_hist[:,3],linestyle='--',label='cmd_pitch')
-            axs[3].plot(time_hist,state_hist[:,3],label='pitch')
-            axs[3].legend()
-            axs[3].set_ylabel('rad')
-            axs[3].set_ylim((-0.7,0.7))
-            plt.xlabel('time/s')
-            fig.suptitle(f"Commands (vx,vy,yaw,pitch,grasp(>0)):{np.round(cmd_hist[0,:], decimals=2)}")
-            plt.tight_layout() 
-            plt.savefig(f'../figs/cmd_following_{i}.png')
+                # axs[2].plot(time_hist,cmd_hist[:,2],linestyle='--',label='cmd_yaw')
+                # axs[2].plot(time_hist,state_hist[:,2],label='yaw') 
+                # axs[2].legend()
+                # axs[2].set_ylabel('rad')  
+                # axs[2].set_ylim((-1,1))
+
+                # axs[3].plot(time_hist,cmd_hist[:,3],linestyle='--',label='cmd_pitch')
+                # axs[3].plot(time_hist,state_hist[:,3],label='pitch')
+                # axs[3].legend()
+                # axs[3].set_ylabel('rad')
+                # axs[3].set_ylim((-0.7,0.7))
+                plt.xlabel('time/s')
+                # fig.suptitle(f"Commands (vx,vy,yaw,pitch,grasp(>0)):{np.round(cmd_hist[0,:], decimals=2)}")
+                plt.tight_layout() 
+                plt.savefig(f'../figs/cmd_following_{i}_{j}.png')
 
             time_hist = []
             cmd_hist = []
