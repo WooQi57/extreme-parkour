@@ -134,7 +134,7 @@ class Go1GBRoughCfg( LeggedRobotCfg ):
 
             # pickup rewards no applicable for approaching
             pickup_box = 6 # 3
-            box_height = 10 # 2
+            box_height = 10 # 2 10
 
             # regularization rewards
             fit_truth = 2.5  # 2.5 for approach else 0.5 fit ground truth data: keep yaw and pitch reasonable
@@ -209,7 +209,7 @@ class Go1GBRoughCfgPPO( LeggedRobotCfgPPO ):
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'rough_a1'
-        resume = False
+        resume = True
         max_iterations = 3000 # number of policy updates 50000
 
     class estimator( LeggedRobotCfgPPO.estimator):

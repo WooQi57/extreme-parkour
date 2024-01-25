@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#SBATCH --job-name="duplc"
+#SBATCH --job-name="hiHbox"
 #SBATCH --partition=iris
 #SBATCH --account=iris
 #SBATCH --output=/iris/u/wuqi23/doggybot/output/000-64-%j.out
