@@ -3,7 +3,7 @@
 #SBATCH --job-name="back"
 #SBATCH --partition=iris
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/000-65-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/000-67-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
 #SBATCH --time=12:00:00 # Max job length is 0.5 day
@@ -27,7 +27,7 @@ nvidia-smi
 
 # sample process
 srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python /iris/u/wuqi23/doggybot/test.py'
-srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go1g --exptid 000-65-lowlevelbc --device cuda:0'
+srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go1g --exptid 000-67-lowlevelbc --device cuda:0'
 
 # done
 echo "Done"

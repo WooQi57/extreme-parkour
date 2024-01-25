@@ -175,7 +175,7 @@ class Go1GRoughCfgPPO( LeggedRobotCfgPPO ):
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'rough_a1'
-        resume = False
+        resume = True
     class estimator( LeggedRobotCfgPPO.estimator):
         priv_states_dim = Go1GRoughCfg.env.n_priv
         num_prop = Go1GRoughCfg.env.n_proprio
