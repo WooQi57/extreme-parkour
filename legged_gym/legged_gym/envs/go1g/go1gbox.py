@@ -129,7 +129,9 @@ class Go1GB(BaseTask):
         # for i in range(4):
         #     self.actions[:,i] = torch.clip(actions[:,i], list(self.command_ranges.values())[i][0], list(self.command_ranges.values())[i][1]).to(self.device)
         # self.actions[:,4] = torch.clip(actions[:,4], -1, 1).to(self.device)
-        self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
+        lo = torch.tensor([0,-0.5,-1,-0.7,-1], device=self.device)
+        hi = torch.tensor([0.5,0.5,1,0.7,1], device=self.device)
+        self.actions = torch.clip(actions, lo, hi).to(self.device)
         
 
         # lowlevel actions
@@ -505,9 +507,9 @@ class Go1GB(BaseTask):
         Computes observations
         """
         imu_obs = torch.stack((self.roll, self.pitch), dim=1)
-        self.real_delta_yaw = self.target_yaw - self.yaw
-        self.real_delta_pitch = self.target_pitch - self.pitch
-        self.real_delta_position = self.base_target_pos
+        self.real_delta_yaw = (self.target_yaw - self.yaw) * (1-self.ready_to_grasp)
+        self.real_delta_pitch = (self.target_pitch - self.pitch) * (1-self.ready_to_grasp)
+        self.real_delta_position = self.base_target_pos * (1-self.ready_to_grasp).view(-1,1)
 
         # replace real obs to the output of the highlevel policy
         obs_buf = torch.cat((
@@ -1483,12 +1485,15 @@ class Go1GB(BaseTask):
         # Tracking of goal position
         ee_error = torch.sum(torch.square(self.target_position - self.ee_pos), dim=1)
         rew = torch.exp(-ee_error/self.cfg.rewards.tracking_sigma)
+        # rew = torch.maximum(rew, self.ready_to_grasp)
         # rew = 1/(ee_error+0.2)
         # print(f"rew_tracking_goal_pos:{rew}")
         return rew
     
     def _reward_tracking_goal_pos_frac(self):
-        rew = 1/(torch.norm(self.target_position - self.ee_pos, dim=-1) + 1e-3)
+        rew = 1/torch.maximum(torch.norm(self.target_position - self.ee_pos, dim=-1),  torch.tensor(0.02))  #1e-3
+        # rew = torch.maximum(rew, 50*self.ready_to_grasp)
+        # print(f"rew_tracking_goal_pos_frac:{rew}")
         return rew
     
     def _reward_tracking_yaw(self):

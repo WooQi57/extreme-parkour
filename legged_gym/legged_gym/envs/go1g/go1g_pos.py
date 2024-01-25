@@ -47,7 +47,7 @@ from .gterrain import Terrain
 from legged_gym.utils.math import *
 from legged_gym.utils.helpers import class_to_dict
 from scipy.spatial.transform import Rotation as R
-from .go1g_config import Go1GRoughCfg
+from .go1g_config_pos import Go1GPRoughCfg
 
 from tqdm import tqdm
 import cv2
@@ -77,8 +77,8 @@ def euler_from_quaternion(quat_angle):
      
         return roll_x, pitch_y, yaw_z # in radians
 
-class Go1G(BaseTask):
-    def __init__(self, cfg: Go1GRoughCfg, sim_params, physics_engine, sim_device, headless):
+class Go1GP(BaseTask):
+    def __init__(self, cfg: Go1GPRoughCfg, sim_params, physics_engine, sim_device, headless):
         """ Parses the provided config file,
             calls create_sim() (which creates, simulation, terrain and environments),
             initilizes pytorch buffers used during training
