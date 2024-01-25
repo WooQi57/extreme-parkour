@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-#SBATCH --job-name="hiHbox700"
+#SBATCH --job-name="hiHboxbc"
 #SBATCH --partition=iris
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/000-68-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/000-69-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
 #SBATCH --time=12:00:00 # Max job length is 0.5 day
@@ -27,7 +27,7 @@ nvidia-smi
 
 # sample process
 srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python /iris/u/wuqi23/doggybot/test.py'
-srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go1gb --exptid 000-68-posboxgrasp*obs700 --device cuda:0'
+srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go1gb --exptid 000-69-posboxgrasp*obsbc --device cuda:0'
 
 # done
 echo "Done"
