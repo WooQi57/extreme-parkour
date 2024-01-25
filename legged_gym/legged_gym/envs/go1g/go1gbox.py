@@ -839,7 +839,7 @@ class Go1GB(BaseTask):
 
         # load policy
         train_cfg.runner.resume = True
-        ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="lowlevel_pos", return_log_dir=True)
+        ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="lowlevel_pos_700", return_log_dir=True)
         self.policy = ppo_runner.get_inference_policy(device=self.device)
 
     def _init_buffers(self):
