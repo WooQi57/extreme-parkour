@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 #SBATCH --job-name="back-67"
-#SBATCH --partition=iris-hi
+#SBATCH --partition=iris
 #SBATCH --account=iris
 #SBATCH --output=/iris/u/wuqi23/doggybot/output/000-67-%j.out
 #SBATCH --cpus-per-task=2
