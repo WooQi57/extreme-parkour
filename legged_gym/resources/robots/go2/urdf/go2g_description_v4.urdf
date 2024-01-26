@@ -75,19 +75,13 @@ Stephen Brawner (brawner@gmail.com)
   </link>
 
   <link name="gripper_grasp_point_link">
-    <visual>
+    <!-- <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <sphere radius="0.001"/>
+        <sphere radius="0.005"/>
       </geometry>
       <material name="blue"/>
-    </visual>
-    <collision>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
-      <geometry>
-        <empty/>
-      </geometry>
-    </collision>
+    </visual> -->
   </link>
   <joint name="gripper_grasp_point_joint" type="fixed">
     <parent link="gripper_link"/>
@@ -111,10 +105,15 @@ Stephen Brawner (brawner@gmail.com)
       <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
     </inertial>
     <visual>
-      <origin rpy="3.14159265359 0 -1.570796326795" xyz="0 -0.03 -0.065"/>
+      <!-- <origin rpy="3.14159265359 0 -1.570796326795" xyz="0 -0.03 -0.065"/>
       <geometry>
         <mesh filename="../dae/finger.stl" scale="0.001 0.001 0.001"/>
+      </geometry> -->
+      <origin rpy="-1.570796326795 0 -1.570796326795" xyz="0.07 0.035 -0.065"/>
+      <geometry>
+        <box size="0.03 0.064 0.08"/>
       </geometry>
+
       <material name="red"/>
     </visual>
     <collision>
@@ -167,11 +166,15 @@ Stephen Brawner (brawner@gmail.com)
       <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
     </inertial>
     <visual>
-      <origin rpy="0 0 1.570796326795" xyz="0 0.03 -0.065"/>
+      <!-- <origin rpy="0 0 1.570796326795" xyz="0 0.03 -0.065"/>
       <geometry>
         <mesh filename="../dae/finger.stl" scale="0.001 0.001 0.001"/>
-        <!-- <box size="0.14 0.02 0.05"/> -->
+      </geometry> -->
+      <origin rpy="1.570796326795 0 1.570796326795" xyz="0.07 -0.035 -0.065"/>
+      <geometry>
+        <box size="0.03 0.064 0.08"/>
       </geometry>
+
       <material name="red"/>
     </visual>
     <collision>

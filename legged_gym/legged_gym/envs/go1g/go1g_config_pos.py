@@ -30,7 +30,7 @@
 
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
 
-class Go1GPRoughCfg( LeggedRobotCfg ):
+class Go1GRoughCfg( LeggedRobotCfg ):
     class init_state( LeggedRobotCfg.init_state ):
         pos = [0.0, 0.0, 0.42] # x,y,z [m]
         default_joint_angles = { # = target angles [rad] when action = 0.0
@@ -169,16 +169,16 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
         lin_vel_clip = 0.2
         ang_clip = 0.05
         
-class Go1GPRoughCfgPPO( LeggedRobotCfgPPO ):
+class Go1GRoughCfgPPO( LeggedRobotCfgPPO ):
     class algorithm( LeggedRobotCfgPPO.algorithm ):
         entropy_coef = 0.01
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'rough_a1'
         resume = False
-        max_iterations = 3000 # number of policy updates 50000
+        max_iterations = 9000 # number of policy updates 50000
 
     class estimator( LeggedRobotCfgPPO.estimator):
-        priv_states_dim = Go1GPRoughCfg.env.n_priv
-        num_prop = Go1GPRoughCfg.env.n_proprio
+        priv_states_dim = Go1GRoughCfg.env.n_priv
+        num_prop = Go1GRoughCfg.env.n_proprio
   

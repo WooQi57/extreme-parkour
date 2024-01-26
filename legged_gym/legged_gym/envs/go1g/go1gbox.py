@@ -129,11 +129,12 @@ class Go1GB(BaseTask):
         # for i in range(4):
         #     self.actions[:,i] = torch.clip(actions[:,i], list(self.command_ranges.values())[i][0], list(self.command_ranges.values())[i][1]).to(self.device)
         # self.actions[:,4] = torch.clip(actions[:,4], -1, 1).to(self.device)
-        lo = torch.tensor([-0.5,-0.5,-1,-0.7,-1], device=self.device)
-        hi = torch.tensor([0.5,0.5,1,0.7,1], device=self.device)
+        lo = torch.tensor([-0.5,-0.7,-1,-0.7,-1], device=self.device)
+        hi = torch.tensor([1,0.7,1,0.7,1], device=self.device)
         self.actions = torch.clip(actions, lo, hi).to(self.device)
-        print(f"action:{actions}")
-        print(f"self.action:{self.actions}")
+        if verbose:
+            print(f"action:{actions}")
+            print(f"self.action:{self.actions}")
         
 
         # lowlevel actions
@@ -509,9 +510,9 @@ class Go1GB(BaseTask):
         Computes observations
         """
         imu_obs = torch.stack((self.roll, self.pitch), dim=1)
-        self.real_delta_yaw = (self.target_yaw - self.yaw) * (1-self.ready_to_grasp)
-        self.real_delta_pitch = (self.target_pitch - self.pitch) * (1-self.ready_to_grasp)
-        self.real_delta_position = self.base_target_pos * (1-self.ready_to_grasp).view(-1,1)
+        self.real_delta_yaw = (self.target_yaw - self.yaw)# * (1-self.ready_to_grasp)
+        self.real_delta_pitch = (self.target_pitch - self.pitch)# * (1-self.ready_to_grasp)
+        self.real_delta_position = self.base_target_pos# * (1-self.ready_to_grasp).view(-1,1)
 
         # replace real obs to the output of the highlevel policy
         obs_buf = torch.cat((
@@ -841,7 +842,7 @@ class Go1GB(BaseTask):
 
         # load policy
         train_cfg.runner.resume = True
-        ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="lowlevel_pos_back", return_log_dir=True)
+        ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="lowlevel_pos.", return_log_dir=True)
         self.policy = ppo_runner.get_inference_policy(device=self.device)
 
     def _init_buffers(self):
@@ -1437,7 +1438,7 @@ class Go1GB(BaseTask):
         box_height = self.box_states[:,2]
         rew = (box_height > 0.04).float()
         rew *= self.ready_to_grasp
-        print(f"rew_pickup_box:{rew}")
+        # print(f"rew_pickup_box:{rew}")
         # print(f"b h:{box_height}")
         return rew
     
@@ -1447,7 +1448,7 @@ class Go1GB(BaseTask):
         clip_height = torch.clip(box_height,0,max_height) 
         rew = torch.exp(-torch.abs(max_height-box_height)/self.cfg.rewards.pick_sigma) 
         rew *= self.ready_to_grasp
-        print(f"rew_box_height:{rew}")
+        # print(f"rew_box_height:{rew}")
         return rew
     
     def _reward_fit_truth(self):
@@ -1458,19 +1459,19 @@ class Go1GB(BaseTask):
             rew = torch.exp(-fit_error)
         else:
             rew = 0
-        print(f"rew_fit_truth:{rew}")
+        # print(f"rew_fit_truth:{rew}")
         return rew
     
     def _reward_between_fingers(self):
         rew = self.between_fingers
-        print(f"rew_between_fingers:{rew}")
+        # print(f"rew_between_fingers:{rew}")
         return rew
     
     def _reward_hold_still(self):
         rew = torch.exp(-torch.norm(self.actions[:, :2],dim=-1))-0.2  # -exp(-1.5)
         # rew = (torch.norm(self.actions[:, :2],dim=-1)<0.02).float()
         rew *= self.ready_to_grasp
-        print(f"rew_hold_still:{rew}")
+        # print(f"rew_hold_still:{rew}")
         return rew
 
     
@@ -1485,17 +1486,26 @@ class Go1GB(BaseTask):
 
     def _reward_tracking_goal_pos(self):
         # Tracking of goal position
-        ee_error = torch.sum(torch.square(self.target_position - self.ee_pos), dim=1)
+        err = self.target_position - self.ee_pos
+        err[:,2]*=5
+        ee_error = torch.sum(torch.square(err), dim=1)
         rew = torch.exp(-ee_error/self.cfg.rewards.tracking_sigma)
         # rew = torch.maximum(rew, self.ready_to_grasp)
         # rew = 1/(ee_error+0.2)
-        print(f"rew_tracking_goal_pos:{rew}")
+        # print(f"rew_tracking_goal_pos:{rew}")
         return rew
     
     def _reward_tracking_goal_pos_frac(self):
-        rew = 1/torch.maximum(torch.norm(self.target_position - self.ee_pos, dim=-1),  torch.tensor(0.02))  #1e-3
+        err = self.target_position - self.ee_pos
+        err[:,2]*=5
+        rew = 1/torch.maximum(torch.norm(err, dim=-1),  torch.tensor(0.02))  #1e-3
         # rew = torch.maximum(rew, 50*self.ready_to_grasp)
-        print(f"rew_tracking_goal_pos_frac:{rew}")
+        # print(f"rew_tracking_goal_pos_frac:{rew}")
+        return rew
+
+    def _reward_tracking_body_height(self):
+        rew = torch.exp(-torch.abs(self.root_states[:,2] - 0.25))
+        # print(f"cur h body:{self.root_states[:,2]}")
         return rew
     
     def _reward_tracking_yaw(self):
@@ -1526,7 +1536,7 @@ class Go1GB(BaseTask):
         # print(f"ready to grasp:{self.ready_to_grasp}")
         # print(f"between_fingers:{self.between_fingers}")
         # print(f"in_scope:{self.in_scope}")
-        print(f"rew_grasp:{rew}")
+        # print(f"rew_grasp:{rew}")
         return rew
     
     def _reward_lin_vel_z(self):

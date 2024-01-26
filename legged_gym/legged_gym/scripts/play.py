@@ -140,7 +140,7 @@ def play(args):
     infos = {}
     infos["depth"] = env.depth_buffer.clone().to(ppo_runner.device)[:, -1] if ppo_runner.if_depth else None
 
-    for i in range(30*int(env.max_episode_length)):
+    for i in range(10*int(env.max_episode_length)):
         if args.use_jit:
             if env.cfg.depth.use_camera:
                 if infos["depth"] is not None:
