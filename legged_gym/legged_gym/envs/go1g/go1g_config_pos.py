@@ -30,7 +30,7 @@
 
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
 
-class Go1GRoughCfg( LeggedRobotCfg ):
+class Go1GPRoughCfg( LeggedRobotCfg ):
     class init_state( LeggedRobotCfg.init_state ):
         pos = [0.0, 0.0, 0.42] # x,y,z [m]
         default_joint_angles = { # = target angles [rad] when action = 0.0
@@ -116,6 +116,7 @@ class Go1GRoughCfg( LeggedRobotCfg ):
             tracking_yaw = 1.5  # 0.5
             tracking_pitch = 1.5  # 0.5
             tracking_gripper = 0.5
+            tracking_ee_height = 0.5
             # regularization rewards
             lin_vel_z = -1.0
             ang_vel_xy = -0.05
@@ -162,14 +163,14 @@ class Go1GRoughCfg( LeggedRobotCfg ):
     class commands( LeggedRobotCfg.commands):
         num_commands = 5 # default: lin_vel_x, lin_vel_y, yaw, pitch, gripper close
         class max_ranges:
-            lin_vel_x = [0., 1.5] # min max [m/s]
+            lin_vel_x = [-0.5, 1.5] # min max [m/s]
             lin_vel_y = [-0.5, 0.5]   # min max [m/s]
             yaw = [-1, 1]    # min max [rad]
             pitch = [-0.7, 0.7]  # min max [rad]
-        lin_vel_clip = 0.2
+        lin_vel_clip = 0.02  # 0.2
         ang_clip = 0.05
         
-class Go1GRoughCfgPPO( LeggedRobotCfgPPO ):
+class Go1GPRoughCfgPPO( LeggedRobotCfgPPO ):
     class algorithm( LeggedRobotCfgPPO.algorithm ):
         entropy_coef = 0.01
     class runner( LeggedRobotCfgPPO.runner ):
@@ -179,6 +180,6 @@ class Go1GRoughCfgPPO( LeggedRobotCfgPPO ):
         max_iterations = 9000 # number of policy updates 50000
 
     class estimator( LeggedRobotCfgPPO.estimator):
-        priv_states_dim = Go1GRoughCfg.env.n_priv
-        num_prop = Go1GRoughCfg.env.n_proprio
+        priv_states_dim = Go1GPRoughCfg.env.n_priv
+        num_prop = Go1GPRoughCfg.env.n_proprio
   

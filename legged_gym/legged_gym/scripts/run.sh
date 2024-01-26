@@ -28,12 +28,13 @@ nvidia-smi
 # sample process
 # srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python /iris/u/wuqi23/doggybot/test.py'
 echo "task description:
-    duplicate
-    high between finger 0.5
-    approach with stress on z:
-        err = self.target_position - self.ee_pos
-        err[:,2]*=5
---------------------------------------------"
+    run lowlevel with low_ee_pos reward"
+#     duplicate
+#     high between finger 0.5
+#     approach with stress on z:
+#         err = self.target_position - self.ee_pos
+#         err[:,2]*=5
+# --------------------------------------------"
 
 srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go1gp --exptid 000-77-lowlevelbl --device cuda:0'
 

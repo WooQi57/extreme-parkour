@@ -240,6 +240,8 @@ class Go1GP(BaseTask):
         self.root_states = self.all_root_states[self.robot_idxs,:]
         self.box_states = self.all_root_states[self.box_idxs,:]  # box position
         hand_pos = self.rigid_body_states[:, self.finger_indices, :3]
+        self.ee_pos = self.rigid_body_states[:, self.grasp_point_index, :3]
+
 
         if verbose:
             print(f"box pose:{self.box_states[:,:3]}")
@@ -1055,6 +1057,8 @@ class Go1GP(BaseTask):
         for i in range(len(finger_names)):
             self.finger_indices[i] = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], finger_names[i])
 
+        self.grasp_point_index = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], 'gripper_grasp_point_link')
+
         self.penalised_contact_indices = torch.zeros(len(penalized_contact_names), dtype=torch.long, device=self.device, requires_grad=False)
         for i in range(len(penalized_contact_names)):
             self.penalised_contact_indices[i] = self.gym.find_actor_rigid_body_handle(self.envs[0], self.actor_handles[0], penalized_contact_names[i])
@@ -1301,6 +1305,11 @@ class Go1GP(BaseTask):
         cur_vel = self.root_states[:, 7:9]
         lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - cur_vel), dim=1)
         return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)
+
+    def _reward_tracking_ee_height(self):
+        ee_height = self.ee_pos[:,2]
+        rew = torch.exp(-torch.abs(ee_height))
+        return rew
     
     def _reward_tracking_yaw(self):
         rew = torch.exp(-torch.abs(self.commands[:, 2] - self.yaw))
