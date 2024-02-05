@@ -32,13 +32,10 @@ from legged_gym import LEGGED_GYM_ROOT_DIR
 import os
 import code
 
-import isaacgym
 from legged_gym.envs import *
 from legged_gym.utils import  get_args, export_policy_as_jit, task_registry, Logger
-from isaacgym import gymtorch, gymapi, gymutil
 import numpy as np
 import torch
-import cv2
 from collections import deque
 import statistics
 import faulthandler
@@ -57,69 +54,22 @@ def get_load_path(root, load_run=-1, checkpoint=-1, model_name_include="model"):
 
 def play(args):
     faulthandler.enable()
-    log_pth = "../../logs/{}/".format(args.proj_name) + args.exptid
-
+    log_pth = os.path.dirname(os.path.realpath(__file__))
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
     # override some parameters for testing
-    if args.nodelay:
-        env_cfg.domain_rand.action_delay_view = 0
-    env_cfg.env.num_envs = 1 if not args.save else 64  # 2
-    env_cfg.env.episode_length_s = 8 # 60 30
-    env_cfg.commands.resampling_time = 8 # 60 10
-    env_cfg.terrain.num_rows = 2
-    env_cfg.terrain.num_cols = 1
-    env_cfg.terrain.height = [0.02, 0.02]
-    env_cfg.terrain.terrain_dict = {"smooth slope": 0., 
-                                    "rough slope up": 0.0,
-                                    "rough slope down": 0.0,
-                                    "rough stairs up": 0., 
-                                    "rough stairs down": 0., 
-                                    "discrete": 0., 
-                                    "stepping stones": 0.0,
-                                    "gaps": 0., 
-                                    "smooth flat": 0,
-                                    "pit": 0.0,
-                                    "wall": 0.0,
-                                    "platform": 0.,
-                                    "large stairs up": 0.,
-                                    "large stairs down": 0.,
-                                    "parkour": 0.2*0,
-                                    "parkour_hurdle": 0.2*0,
-                                    "parkour_flat": 0.,
-                                    "parkour_step": 1.0,
-                                    "parkour_gap": 0.2*0, 
-                                    "demo": 0.2*0}
-    
-    env_cfg.terrain.terrain_proportions = list(env_cfg.terrain.terrain_dict.values())
-    env_cfg.terrain.curriculum = False
-    env_cfg.terrain.max_difficulty = True
-    
-    env_cfg.depth.angle = [0, 1]
-    env_cfg.noise.add_noise = True
-    env_cfg.domain_rand.randomize_friction = True
-    env_cfg.domain_rand.push_robots = False
-    env_cfg.domain_rand.push_interval_s = 6
-    env_cfg.domain_rand.randomize_base_mass = False
-    env_cfg.domain_rand.randomize_base_com = False
+    env_cfg.env.num_envs = 1
 
-    depth_latent_buffer = []
     # prepare environment
     env: LeggedRobot
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
     obs = env.get_observations()
+    obs = torch.zeros(env.num_observations,device=env.device)
 
-    # prepare plot data
-    time_hist = []
-    cmd_hist = []
-    state_hist = []
-    ref_hist = []
-    finger_force_hist = []
-    
     # load policy
     train_cfg.runner.resume = True
-    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model", return_log_dir=True)
+    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="lowlevel_pos.pt", return_log_dir=True)
     policy = ppo_runner.get_inference_policy(device=env.device)
-    actions = torch.zeros(env.num_envs, 12, device=env.device, requires_grad=False)
+    actions = torch.zeros(1, 13, device=env.device, requires_grad=False)
 
     for i in range(10*int(env.max_episode_length)):
 
@@ -128,95 +78,104 @@ def play(args):
         
 
 
-        # plot results
-
-        # store data for plot
-        cur_time = env.episode_length_buf[env.lookat_id].item() / 50
-        time_hist.append(cur_time)
-        cmd_hist.append((env.target_position[env.lookat_id, :]).tolist())
-        cur_state = env.ee_pos[env.lookat_id, :].tolist()
-        cur_state.append(env.yaw[env.lookat_id].tolist())
-        cur_state.append(env.pitch[env.lookat_id].tolist())
-        state_hist.append(cur_state)
-        ref = [env.target_yaw[env.lookat_id].tolist(),env.target_pitch[env.lookat_id].tolist()]
-        ref_hist.append(ref)
-
-
-        real_delta_yaw = env.target_yaw[env.lookat_id].tolist() - env.yaw[env.lookat_id].tolist()
-        real_delta_pitch = env.target_pitch[env.lookat_id].tolist() - env.pitch[env.lookat_id].tolist()
-        finger_force = torch.norm(env.contact_forces[env.lookat_id, env.finger_indices, :],dim=1).tolist()
-        finger_force = env.contact_forces[env.lookat_id, env.finger_indices, :].tolist()
-        # finger_force_hist.append(finger_force)
-        # print("----------\ntime:", cur_time, 
-        #       "\nbase_target_pos:", env.base_target_pos[env.lookat_id, :].tolist(),
-        #       "\nreal_delta_pos:", env.target_pos_rel[env.lookat_id, :].tolist(),
-        #       "\nhighlevel_vel:", env.actions[env.lookat_id, :2].tolist(),
-        #       "\nreal_target_yaw:", env.target_yaw[env.lookat_id].tolist(), 
-        #       "\nhighlevel_yaw:", env.actions[env.lookat_id, 2].tolist(),
-        #       "\nreal_target_pitch:", env.target_pitch[env.lookat_id].tolist(),
-        #       "\nhighlevel_pitch:", env.actions[env.lookat_id, 3].tolist(),
-        #       "\nhighlevel_gripper open:", env.actions[env.lookat_id, -1]<0,
-        #       "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
-        #       "\nfinger_contact_force:",finger_force,
-        #       "\nfinger_position",[[round(x,2) for x in sublist] for sublist in env.rigid_body_states[env.lookat_id, env.finger_indices, :3].tolist()]
-        #       )
-            #   "\ndof_pos:",env.dof_pos,
-            #   "\nbox_position:",[round(x,2) for x in env.box_states[env.lookat_id,:3].tolist()],
-        
-        id = env.lookat_id
-        # if cur_time == 0 or i == 3*int(env.max_episode_length)-1:  #or (cur_time % env_cfg.commands.resampling_time)==0 
-        #     time_hist = np.array(time_hist[:-3])
-        #     cmd_hist = np.array(cmd_hist[:-3])
-        #     state_hist = np.array(state_hist[:-3])
-        #     ref_hist = np.array(ref_hist[:-3])
-        #     finger_force_hist = np.array(finger_force_hist[:-3])
-        #     fig,axs = plt.subplots(5,1,sharex=True)
-        #     axs[0].plot(time_hist,cmd_hist[:,0],linestyle='--',label='target_x')
-        #     axs[0].plot(time_hist,state_hist[:,0],label='x')
-        #     axs[0].legend()
-        #     axs[0].set_ylabel('m')
-        #     # axs[0].set_ylim((-0.5,1.5))
-
-        #     axs[1].plot(time_hist,cmd_hist[:,1],linestyle='--',label='target_y')
-        #     axs[1].plot(time_hist,state_hist[:,1],label='y')    
-        #     axs[1].legend()
-        #     axs[1].set_ylabel('m')
-        #     # axs[1].set_ylim((-1,1))
-
-        #     axs[2].plot(time_hist,cmd_hist[:,2],linestyle='--',label='target_z')
-        #     axs[2].plot(time_hist,state_hist[:,2],label='z') 
-        #     axs[2].legend()
-        #     axs[2].set_ylabel('m')  
-        #     # axs[2].set_ylim((-1,1))
-
-        #     axs[3].plot(time_hist,ref_hist[:,0],linestyle='--',label='ref_yaw')
-        #     axs[3].plot(time_hist,state_hist[:,3],label='yaw')
-        #     axs[3].legend()
-        #     axs[3].set_ylabel('rad')
-        #     # axs[3].set_ylim((-0.7,0.7))
-
-        #     axs[4].plot(time_hist,ref_hist[:,1],linestyle='--',label='ref_pitch')
-        #     axs[4].plot(time_hist,state_hist[:,4],label='pitch')
-        #     axs[4].legend()
-        #     axs[4].set_ylabel('rad')
-        #     # axs[4].set_ylim((-0.7,0.7))
-
-        #     plt.ylabel('force/N')
-        #     plt.xlabel('time/s')
-        #     # fig.suptitle(f"targetx,vy,yaw,pitch,grasp(>0)):{np.round(cmd_hist[0,:], decimals=2)}")
-        #     plt.tight_layout() 
-        #     plt.savefig(f'../figs/cmd_following_{i}.png')
-        #     # plt.savefig(f'../figs/force_{i}_{cur_time}.png')
-
-        #     time_hist = []
-        #     cmd_hist = []
-        #     state_hist = []
-        #     ref_hist = []
-        #     finger_force_hist = []
-
 if __name__ == '__main__':
     EXPORT_POLICY = False
     RECORD_FRAMES = False
     MOVE_CAMERA = False
     args = get_args()
     play(args)
+
+
+
+    # # prepare plot data
+    # time_hist = []
+    # cmd_hist = []
+    # state_hist = []
+    # ref_hist = []
+    # finger_force_hist = []
+    
+        # # plot results
+
+        # # store data for plot
+        # cur_time = env.episode_length_buf[env.lookat_id].item() / 50
+        # time_hist.append(cur_time)
+        # cmd_hist.append((env.target_position[env.lookat_id, :]).tolist())
+        # cur_state = env.ee_pos[env.lookat_id, :].tolist()
+        # cur_state.append(env.yaw[env.lookat_id].tolist())
+        # cur_state.append(env.pitch[env.lookat_id].tolist())
+        # state_hist.append(cur_state)
+        # ref = [env.target_yaw[env.lookat_id].tolist(),env.target_pitch[env.lookat_id].tolist()]
+        # ref_hist.append(ref)
+
+
+        # real_delta_yaw = env.target_yaw[env.lookat_id].tolist() - env.yaw[env.lookat_id].tolist()
+        # real_delta_pitch = env.target_pitch[env.lookat_id].tolist() - env.pitch[env.lookat_id].tolist()
+        # finger_force = torch.norm(env.contact_forces[env.lookat_id, env.finger_indices, :],dim=1).tolist()
+        # finger_force = env.contact_forces[env.lookat_id, env.finger_indices, :].tolist()
+        # # finger_force_hist.append(finger_force)
+        # # print("----------\ntime:", cur_time, 
+        # #       "\nbase_target_pos:", env.base_target_pos[env.lookat_id, :].tolist(),
+        # #       "\nreal_delta_pos:", env.target_pos_rel[env.lookat_id, :].tolist(),
+        # #       "\nhighlevel_vel:", env.actions[env.lookat_id, :2].tolist(),
+        # #       "\nreal_target_yaw:", env.target_yaw[env.lookat_id].tolist(), 
+        # #       "\nhighlevel_yaw:", env.actions[env.lookat_id, 2].tolist(),
+        # #       "\nreal_target_pitch:", env.target_pitch[env.lookat_id].tolist(),
+        # #       "\nhighlevel_pitch:", env.actions[env.lookat_id, 3].tolist(),
+        # #       "\nhighlevel_gripper open:", env.actions[env.lookat_id, -1]<0,
+        # #       "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
+        # #       "\nfinger_contact_force:",finger_force,
+        # #       "\nfinger_position",[[round(x,2) for x in sublist] for sublist in env.rigid_body_states[env.lookat_id, env.finger_indices, :3].tolist()]
+        # #       )
+        #     #   "\ndof_pos:",env.dof_pos,
+        #     #   "\nbox_position:",[round(x,2) for x in env.box_states[env.lookat_id,:3].tolist()],
+        
+        # id = env.lookat_id
+        # # if cur_time == 0 or i == 3*int(env.max_episode_length)-1:  #or (cur_time % env_cfg.commands.resampling_time)==0 
+        # #     time_hist = np.array(time_hist[:-3])
+        # #     cmd_hist = np.array(cmd_hist[:-3])
+        # #     state_hist = np.array(state_hist[:-3])
+        # #     ref_hist = np.array(ref_hist[:-3])
+        # #     finger_force_hist = np.array(finger_force_hist[:-3])
+        # #     fig,axs = plt.subplots(5,1,sharex=True)
+        # #     axs[0].plot(time_hist,cmd_hist[:,0],linestyle='--',label='target_x')
+        # #     axs[0].plot(time_hist,state_hist[:,0],label='x')
+        # #     axs[0].legend()
+        # #     axs[0].set_ylabel('m')
+        # #     # axs[0].set_ylim((-0.5,1.5))
+
+        # #     axs[1].plot(time_hist,cmd_hist[:,1],linestyle='--',label='target_y')
+        # #     axs[1].plot(time_hist,state_hist[:,1],label='y')    
+        # #     axs[1].legend()
+        # #     axs[1].set_ylabel('m')
+        # #     # axs[1].set_ylim((-1,1))
+
+        # #     axs[2].plot(time_hist,cmd_hist[:,2],linestyle='--',label='target_z')
+        # #     axs[2].plot(time_hist,state_hist[:,2],label='z') 
+        # #     axs[2].legend()
+        # #     axs[2].set_ylabel('m')  
+        # #     # axs[2].set_ylim((-1,1))
+
+        # #     axs[3].plot(time_hist,ref_hist[:,0],linestyle='--',label='ref_yaw')
+        # #     axs[3].plot(time_hist,state_hist[:,3],label='yaw')
+        # #     axs[3].legend()
+        # #     axs[3].set_ylabel('rad')
+        # #     # axs[3].set_ylim((-0.7,0.7))
+
+        # #     axs[4].plot(time_hist,ref_hist[:,1],linestyle='--',label='ref_pitch')
+        # #     axs[4].plot(time_hist,state_hist[:,4],label='pitch')
+        # #     axs[4].legend()
+        # #     axs[4].set_ylabel('rad')
+        # #     # axs[4].set_ylim((-0.7,0.7))
+
+        # #     plt.ylabel('force/N')
+        # #     plt.xlabel('time/s')
+        # #     # fig.suptitle(f"targetx,vy,yaw,pitch,grasp(>0)):{np.round(cmd_hist[0,:], decimals=2)}")
+        # #     plt.tight_layout() 
+        # #     plt.savefig(f'../figs/cmd_following_{i}.png')
+        # #     # plt.savefig(f'../figs/force_{i}_{cur_time}.png')
+
+        # #     time_hist = []
+        # #     cmd_hist = []
+        # #     state_hist = []
+        # #     ref_hist = []
+        # #     finger_force_hist = []

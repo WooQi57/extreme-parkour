@@ -29,34 +29,20 @@
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
 from legged_gym import LEGGED_GYM_ROOT_DIR, LEGGED_GYM_ENVS_DIR
-from legged_gym.envs.a1.a1_config import A1RoughCfg, A1RoughCfgPPO
-from .base.legged_robot import LeggedRobot
-from .anymal_c.anymal import Anymal
-from .anymal_c.mixed_terrains.anymal_c_rough_config import AnymalCRoughCfg, AnymalCRoughCfgPPO
-from .anymal_c.flat.anymal_c_flat_config import AnymalCFlatCfg, AnymalCFlatCfgPPO
-from .anymal_b.anymal_b_config import AnymalBRoughCfg, AnymalBRoughCfgPPO
-from .cassie.cassie import Cassie
-from .cassie.cassie_config import CassieRoughCfg, CassieRoughCfgPPO
-from .a1.a1_config import A1RoughCfg, A1RoughCfgPPO
-from .a1.a1_parkour_config import A1ParkourCfg, A1ParkourCfgPPO
-from .go1.go1_config import Go1RoughCfg, Go1RoughCfgPPO
-from .go1g.go1g_config import Go1GRoughCfg, Go1GRoughCfgPPO
-from .go1g.go1g_config_pos import Go1GPRoughCfg, Go1GPRoughCfgPPO
-from .go1g.go1gb_config import Go1GBRoughCfg, Go1GBRoughCfgPPO
-from .go1g.go1g import Go1G
-from .go1g.go1g_pos import Go1GP
-from .go1g.go1gbox import Go1GB
+# from .go1g.go1g_config import Go1GRoughCfg, Go1GRoughCfgPPO
+# from .go1g.go1g_config_pos import Go1GPRoughCfg, Go1GPRoughCfgPPO
+# from .go1g.go1gb_config import Go1GBRoughCfg, Go1GBRoughCfgPPO
+# from .go1g.go1g import Go1G
+# from .go1g.go1g_pos import Go1GP
+# from .go1g.go1gbox import Go1GB
+from .go1g.deploy import Deploy
+from .go1g.deploy_config import DeployCfg, DeployCfgPPO
 
 import os
 
 from legged_gym.utils.task_registry import task_registry
 
-# task_registry.register( "anymal_c_rough", Anymal, AnymalCRoughCfg(), AnymalCRoughCfgPPO() )
-# task_registry.register( "anymal_c_flat", Anymal, AnymalCFlatCfg(), AnymalCFlatCfgPPO() )
-# task_registry.register( "anymal_b", Anymal, AnymalBRoughCfg(), AnymalBRoughCfgPPO() )
-# task_registry.register( "cassie", Cassie, CassieRoughCfg(), CassieRoughCfgPPO() )
-task_registry.register( "a1", LeggedRobot, A1ParkourCfg(), A1ParkourCfgPPO() )
-task_registry.register( "go1", LeggedRobot, Go1RoughCfg(), Go1RoughCfgPPO() )
-task_registry.register( "go1g", Go1G, Go1GRoughCfg(), Go1GRoughCfgPPO() )
-task_registry.register( "go1gp", Go1GP, Go1GPRoughCfg(), Go1GPRoughCfgPPO() )
-task_registry.register( "go1gb", Go1GB, Go1GBRoughCfg(), Go1GBRoughCfgPPO() )
+# task_registry.register( "go1g", Go1G, Go1GRoughCfg(), Go1GRoughCfgPPO() )
+# task_registry.register( "go1gp", Go1GP, Go1GPRoughCfg(), Go1GPRoughCfgPPO() )
+# task_registry.register( "go1gb", Go1GB, Go1GBRoughCfg(), Go1GBRoughCfgPPO() )
+task_registry.register( "deploy", Deploy, DeployCfg(), DeployCfgPPO() )
