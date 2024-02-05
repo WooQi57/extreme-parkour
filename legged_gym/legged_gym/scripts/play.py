@@ -56,10 +56,7 @@ def get_load_path(root, load_run=-1, checkpoint=-1, model_name_include="model"):
     return model, checkpoint
 
 def play(args):
-    if args.web:
-        web_viewer = webviewer.WebViewer(output_video_file="../figs/output.mp4")
     faulthandler.enable()
-    exptid = args.exptid
     log_pth = "../../logs/{}/".format(args.proj_name) + args.exptid
 
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
@@ -117,66 +114,22 @@ def play(args):
     state_hist = []
     ref_hist = []
     finger_force_hist = []
-    if args.web:
-        web_viewer.setup(env)
-
+    
     # load policy
     train_cfg.runner.resume = True
     ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model", return_log_dir=True)
-    
-    if args.use_jit:
-        path = os.path.join(log_pth, "traced")
-        model, checkpoint = get_load_path(root=path, checkpoint=args.checkpoint)
-        path = os.path.join(path, model)
-        print("Loading jit for policy: ", path)
-        policy_jit = torch.jit.load(path, map_location=env.device)
-    else:
-        policy = ppo_runner.get_inference_policy(device=env.device)
-    estimator = ppo_runner.get_estimator_inference_policy(device=env.device)
-    if env.cfg.depth.use_camera:
-        depth_encoder = ppo_runner.get_depth_encoder_inference_policy(device=env.device)
-
+    policy = ppo_runner.get_inference_policy(device=env.device)
     actions = torch.zeros(env.num_envs, 12, device=env.device, requires_grad=False)
-    infos = {}
-    infos["depth"] = env.depth_buffer.clone().to(ppo_runner.device)[:, -1] if ppo_runner.if_depth else None
 
     for i in range(10*int(env.max_episode_length)):
-        if args.use_jit:
-            if env.cfg.depth.use_camera:
-                if infos["depth"] is not None:
-                    depth_latent = torch.ones((env_cfg.env.num_envs, 32), device=env.device)
-                    actions, depth_latent = policy_jit(obs.detach(), True, infos["depth"], depth_latent)
-                else:
-                    depth_buffer = torch.ones((env_cfg.env.num_envs, 58, 87), device=env.device)
-                    actions, depth_latent = policy_jit(obs.detach(), False, depth_buffer, depth_latent)
-            else:
-                obs_jit = torch.cat((obs.detach()[:, :env_cfg.env.n_proprio+env_cfg.env.n_priv], obs.detach()[:, -env_cfg.env.history_len*env_cfg.env.n_proprio:]), dim=1)
-                actions = policy(obs_jit)
-        else:
-            if env.cfg.depth.use_camera:
-                if infos["depth"] is not None:
-                    obs_student = obs[:, :env.cfg.env.n_proprio].clone()
-                    obs_student[:, 6:8] = 0
-                    depth_latent_and_yaw = depth_encoder(infos["depth"], obs_student)
-                    depth_latent = depth_latent_and_yaw[:, :-2]
-                    yaw = depth_latent_and_yaw[:, -2:]
-                obs[:, 6:8] = 1.5*yaw
-                    
-            else:
-                depth_latent = None
-            
-            if hasattr(ppo_runner.alg, "depth_actor"):
-                actions = ppo_runner.alg.depth_actor(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
-            else:
-                actions = policy(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
-        # print(actions[:,-1])
+
+        actions = policy(obs.detach(), hist_encoding=True, scandots_latent=None)
         obs, _, rews, dones, infos = env.step(actions.detach())
-        if args.web:
-            web_viewer.render(fetch_results=True,
-                        step_graphics=True,
-                        render_all_camera_sensors=True,
-                        wait_for_page_load=True)
-            web_viewer.write_vid()
+        
+
+
+        # plot results
+
         # store data for plot
         cur_time = env.episode_length_buf[env.lookat_id].item() / 50
         time_hist.append(cur_time)
