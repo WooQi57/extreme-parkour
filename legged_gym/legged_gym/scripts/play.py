@@ -63,7 +63,7 @@ def play(args):
     # prepare environment
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
     # obs = get_observations()
-    obs = torch.zeros(env_cfg.env.num_observations,device='cuda')
+    obs = torch.zeros(1,env_cfg.env.num_observations,device='cuda')
 
     # load policy
     train_cfg.runner.resume = True
@@ -72,9 +72,26 @@ def play(args):
     actions = torch.zeros(1, 13, device=env.device, requires_grad=False)
 
     for i in range(1000):
-
         actions = policy(obs.detach(), hist_encoding=True, scandots_latent=None)
-        obs, _, rews, dones, infos = env.step(actions.detach())
+
+        # action output
+        clip_lowlevel_actions = env.cfg.normalization.clip_actions / env.cfg.control.action_scale
+        lowlevel_actions = torch.clip(actions, -clip_lowlevel_actions, clip_lowlevel_actions).to(env.device)
+        lowlevel_actions[:,-1] = torch.clip(env.lowlevel_actions[:,-1], -1, 1).to(env.device)
+
+        for _ in range(env.cfg.control.decimation):
+            lowlevel_actions_tmp = lowlevel_actions.clone()
+            lowlevel_actions = torch.cat((lowlevel_actions_tmp,lowlevel_actions_tmp[:,-1:]),dim=1)  # repeat last element to control both fingers
+            # TODO: init default_dof_pos_all, gains, limits 
+            # TODO: get current dof_pos, dof_vel
+            actions_scaled = actions * env.cfg.control.action_scale
+            torques = env.p_gains*(actions_scaled + env.default_dof_pos_all - env.dof_pos) - env.d_gains*env.dof_vel
+
+            output_torques = torch.clip(torques, -env.torque_limits, env.torque_limits)
+    
+            
+        print(actions)
+        # obs = get_observations()
         
 
 

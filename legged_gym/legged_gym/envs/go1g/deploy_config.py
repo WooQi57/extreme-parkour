@@ -162,4 +162,5 @@ class DeployCfgPPO( LeggedRobotCfgPPO ):
     class estimator( LeggedRobotCfgPPO.estimator):
         priv_states_dim = DeployCfg.env.n_priv
         num_prop = DeployCfg.env.n_proprio
+        num_scan = LeggedRobotCfg.env.n_scan
   
