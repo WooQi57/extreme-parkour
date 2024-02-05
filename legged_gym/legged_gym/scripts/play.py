@@ -32,7 +32,8 @@ from legged_gym import LEGGED_GYM_ROOT_DIR
 import os
 import code
 
-from legged_gym.envs import *
+from legged_gym.envs.go1g.deploy import *
+from legged_gym.envs.go1g.deploy_config import *
 from legged_gym.utils import  get_args, export_policy_as_jit, task_registry, Logger
 import numpy as np
 import torch
@@ -60,10 +61,9 @@ def play(args):
     env_cfg.env.num_envs = 1
 
     # prepare environment
-    env: LeggedRobot
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
-    obs = env.get_observations()
-    obs = torch.zeros(env.num_observations,device=env.device)
+    # obs = get_observations()
+    obs = torch.zeros(env_cfg.env.num_observations,device='cuda')
 
     # load policy
     train_cfg.runner.resume = True
@@ -71,7 +71,7 @@ def play(args):
     policy = ppo_runner.get_inference_policy(device=env.device)
     actions = torch.zeros(1, 13, device=env.device, requires_grad=False)
 
-    for i in range(10*int(env.max_episode_length)):
+    for i in range(1000):
 
         actions = policy(obs.detach(), hist_encoding=True, scandots_latent=None)
         obs, _, rews, dones, infos = env.step(actions.detach())

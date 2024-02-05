@@ -33,8 +33,8 @@ import copy
 import torch
 import numpy as np
 import random
-from isaacgym import gymapi
-from isaacgym import gymutil
+# from isaacgym import gymapi
+# from isaacgym import gymutil
 import argparse
 from legged_gym import LEGGED_GYM_ROOT_DIR, LEGGED_GYM_ENVS_DIR
 
@@ -76,29 +76,29 @@ def set_seed(seed):
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-def parse_sim_params(args, cfg):
-    # code from Isaac Gym Preview 2
-    # initialize sim params
-    sim_params = gymapi.SimParams()
+# def parse_sim_params(args, cfg):
+#     # code from Isaac Gym Preview 2
+#     # initialize sim params
+#     sim_params = gymapi.SimParams()
 
-    # set some values from args
-    if args.physics_engine == gymapi.SIM_FLEX:
-        if args.device != "cpu":
-            print("WARNING: Using Flex with GPU instead of PHYSX!")
-    elif args.physics_engine == gymapi.SIM_PHYSX:
-        sim_params.physx.use_gpu = args.use_gpu
-        sim_params.physx.num_subscenes = args.subscenes
-    sim_params.use_gpu_pipeline = args.use_gpu_pipeline
+#     # set some values from args
+#     if args.physics_engine == gymapi.SIM_FLEX:
+#         if args.device != "cpu":
+#             print("WARNING: Using Flex with GPU instead of PHYSX!")
+#     elif args.physics_engine == gymapi.SIM_PHYSX:
+#         sim_params.physx.use_gpu = args.use_gpu
+#         sim_params.physx.num_subscenes = args.subscenes
+#     sim_params.use_gpu_pipeline = args.use_gpu_pipeline
 
-    # if sim options are provided in cfg, parse them and update/override above:
-    if "sim" in cfg:
-        gymutil.parse_sim_config(cfg["sim"], sim_params)
+#     # if sim options are provided in cfg, parse them and update/override above:
+#     if "sim" in cfg:
+#         gymutil.parse_sim_config(cfg["sim"], sim_params)
 
-    # Override num_threads if passed on the command line
-    if args.physics_engine == gymapi.SIM_PHYSX and args.num_threads > 0:
-        sim_params.physx.num_threads = args.num_threads
+#     # Override num_threads if passed on the command line
+#     if args.physics_engine == gymapi.SIM_PHYSX and args.num_threads > 0:
+#         sim_params.physx.num_threads = args.num_threads
 
-    return sim_params
+#     return sim_params
 
 def get_load_path(root, load_run=-1, checkpoint=-1, model_name_include="model"):
     if not os.path.isdir(root):  # use first 4 chars to mactch the run name
@@ -219,7 +219,7 @@ def get_args():
         {"name": "--hitid", "type": str, "default": None, "help": "exptid fot hitting policy"},
 
         {"name": "--web", "action": "store_true", "default": False, "help": "if use web viewer"},
-        {"name": "--no_wandb", "action": "store_true", "default": False, "help": "no wandb"}
+        {"name": "--no_wandb", "action": "store_true", "default": True, "help": "no wandb"}
 
 
     ]
@@ -356,12 +356,12 @@ def parse_arguments(description="Isaac Gym Example", headless=False, no_graphics
         args.pipeline = 'CPU'
         args.use_gpu_pipeline = False
 
-    # Default to PhysX
-    args.physics_engine = gymapi.SIM_PHYSX
-    args.use_gpu = (args.sim_device_type == 'cuda')
+    # # Default to PhysX
+    # args.physics_engine = gymapi.SIM_PHYSX
+    # args.use_gpu = (args.sim_device_type == 'cuda')
 
-    if args.flex:
-        args.physics_engine = gymapi.SIM_FLEX
+    # if args.flex:
+    #     args.physics_engine = gymapi.SIM_FLEX
 
     # Using --nographics implies --headless
     if no_graphics and args.nographics:

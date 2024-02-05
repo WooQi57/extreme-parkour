@@ -39,7 +39,7 @@ from rsl_rl.env import VecEnv
 from rsl_rl.runners import OnPolicyRunner
 
 from legged_gym import LEGGED_GYM_ROOT_DIR, LEGGED_GYM_ENVS_DIR
-from .helpers import get_args, update_cfg_from_args, class_to_dict, get_load_path, set_seed, parse_sim_params
+from .helpers import get_args, update_cfg_from_args, class_to_dict, get_load_path, set_seed #, parse_sim_params
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
 
 class TaskRegistry():
@@ -94,12 +94,12 @@ class TaskRegistry():
         set_seed(env_cfg.seed)
         # parse sim params (convert to dict first)
         sim_params = {"sim": class_to_dict(env_cfg.sim)}
-        sim_params = parse_sim_params(args, sim_params)
-        env = task_class(   cfg=env_cfg,
-                            sim_params=sim_params,
-                            physics_engine=args.physics_engine,
-                            sim_device=args.sim_device,
-                            headless=args.headless)
+        # sim_params = parse_sim_params(args, sim_params)
+        env = task_class(cfg=env_cfg)
+        # ,
+        #                     sim_params=sim_params,
+        #                     sim_device=args.sim_device,
+        #                     headless=args.headless)
         return env, env_cfg
 
     def make_alg_runner(self, env, name=None, args=None, train_cfg=None, init_wandb=True, log_root="default", model_name_include="model", **kwargs) -> Tuple[OnPolicyRunner, LeggedRobotCfgPPO]:
