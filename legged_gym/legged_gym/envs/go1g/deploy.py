@@ -50,7 +50,7 @@ from legged_gym import LEGGED_GYM_ROOT_DIR
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-verbose=False
+LEG_DOF=12
 
 class Deploy():
     def __init__(self, cfg):
@@ -72,6 +72,48 @@ class Deploy():
         self.num_privileged_obs = cfg.env.num_privileged_obs
         self.num_actions = cfg.env.num_actions
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+        # joint positions offsets and PD gains
+        # urdf_dof_names =  ['FL_hip_joint', 'FL_thigh_joint', 'FL_calf_joint', 'FR_hip_joint', 'FR_thigh_joint', 'FR_calf_joint',\
+        #                     'RL_hip_joint', 'RL_thigh_joint', 'RL_calf_joint', 'RR_hip_joint', 'RR_thigh_joint', 'RR_calf_joint']
+        self.dof_names =  ['FR_hip_joint', 'FR_thigh_joint', 'FR_calf_joint', 'FL_hip_joint', 'FL_thigh_joint', 'FL_calf_joint',\
+                            'RR_hip_joint', 'RR_thigh_joint', 'RR_calf_joint', 'RL_hip_joint', 'RL_thigh_joint', 'RL_calf_joint']        
+        self.p_gains = torch.zeros(LEG_DOF, dtype=torch.float, device=self.device, requires_grad=False)
+        self.d_gains = torch.zeros(LEG_DOF, dtype=torch.float, device=self.device, requires_grad=False)
+        self.default_dof_pos_all = torch.zeros(1, LEG_DOF, dtype=torch.float, device=self.device, requires_grad=False)
+        self.default_dof_pos = torch.zeros(LEG_DOF, dtype=torch.float, device=self.device, requires_grad=False)
+        for i in range(LEG_DOF):
+            name = self.dof_names[i]
+            angle = self.cfg.init_state.default_joint_angles[name]
+            self.default_dof_pos[i] = angle
+            for dof_name in self.cfg.control.stiffness.keys():
+                if dof_name in name:
+                    self.p_gains[i] = self.cfg.control.stiffness[dof_name]
+                    self.d_gains[i] = self.cfg.control.damping[dof_name]
+        self.default_dof_pos = self.default_dof_pos.unsqueeze(0)
+        self.default_dof_pos_all[:] = self.default_dof_pos[0]
+
+
+    def compute_angle(self,actions):
+        # action output
+        clip_lowlevel_actions = self.cfg.normalization.clip_actions / self.cfg.control.action_scale
+        lowlevel_actions = torch.clip(actions, -clip_lowlevel_actions, clip_lowlevel_actions).to(self.device)
+        lowlevel_actions[:,-1] = torch.clip(lowlevel_actions[:,-1], -1, 1).to(self.device)
+
+        # TODO: joint pos limits? torque limits?
+        actions_scaled = lowlevel_actions[:,:-1] * self.cfg.control.action_scale + self.default_dof_pos_all
+        return actions_scaled
+    
+        # torques = self.p_gains*(actions_scaled + self.default_dof_pos_all - self.dof_pos) - self.d_gains*self.dof_vel
+        # output_torques = torch.clip(torques, -self.torque_limits, self.torque_limits)
+
+    def reindex(self, vec):
+        # not needed for go2
+        if self.num_lowlevel_actions==13:
+            return vec[:, [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8, 12]]
+        else:
+            return vec[:, [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]]
+
     #     self.sim_params = sim_params
     #     self.height_samples = None
     #     self.debug_viz = True
