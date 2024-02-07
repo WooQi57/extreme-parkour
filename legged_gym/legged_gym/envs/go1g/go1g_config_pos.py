@@ -108,6 +108,14 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
         penalize_contacts_on = ["thigh", "calf", "finger", "gripper"]
         terminate_after_contacts_on = ["base"]#, "thigh", "calf"]
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
+
+    class domain_rand( LeggedRobotCfg.domain_rand):
+        delay_update_global_steps = 24 * 8000
+        action_delay = True
+        action_curr_step = [1, 1]
+        action_curr_step_scratch = [0, 1]
+        action_delay_view = 1
+        action_buf_len = 8
   
     class rewards( LeggedRobotCfg.rewards ):
         class scales:
@@ -116,7 +124,7 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
             tracking_yaw = 1.5  # 0.5
             tracking_pitch = 1.5  # 0.5
             tracking_gripper = 0.5
-            tracking_ee_height = 0.5
+            tracking_ee_height = 0.3
             # regularization rewards
             lin_vel_z = -1.0
             ang_vel_xy = -0.05
@@ -166,7 +174,7 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
             lin_vel_x = [-0.5, 1.5] # min max [m/s]
             lin_vel_y = [-0.5, 0.5]   # min max [m/s]
             yaw = [-1, 1]    # min max [rad]
-            pitch = [-0.7, 0.7]  # min max [rad]
+            pitch = [-0.7, 0.3]  # min max [rad]
         lin_vel_clip = 0.02  # 0.2
         ang_clip = 0.05
         

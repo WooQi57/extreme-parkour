@@ -603,6 +603,7 @@ class Go1GP(BaseTask):
         # set small commands to zero
         self.commands[env_ids, :2] *= torch.abs(self.commands[env_ids, :2]) > self.cfg.commands.lin_vel_clip
         self.commands[env_ids, 2:4] *= torch.abs(self.commands[env_ids, 2:4]) > self.cfg.commands.ang_clip
+        # print(f"commands:{self.commands}")
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.

@@ -68,7 +68,7 @@ def play(args):
         env_cfg.domain_rand.action_delay_view = 0
     env_cfg.env.num_envs = 1 if not args.save else 64  # 2
     env_cfg.env.episode_length_s = 8 # 60 30
-    env_cfg.commands.resampling_time = 8 # 60 10
+    env_cfg.commands.resampling_time = 2 # 60 10
     env_cfg.terrain.num_rows = 2
     env_cfg.terrain.num_cols = 1
     env_cfg.terrain.height = [0.02, 0.02]
@@ -122,7 +122,7 @@ def play(args):
 
     # load policy
     train_cfg.runner.resume = True
-    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model", return_log_dir=True)
+    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model_7000.", return_log_dir=True)
     
     if args.use_jit:
         path = os.path.join(log_pth, "traced")
@@ -178,21 +178,21 @@ def play(args):
                         wait_for_page_load=True)
             web_viewer.write_vid()
         # store data for plot
-        cur_time = env.episode_length_buf[env.lookat_id].item() / 50
-        time_hist.append(cur_time)
-        cmd_hist.append((env.target_position[env.lookat_id, :]).tolist())
-        cur_state = env.ee_pos[env.lookat_id, :].tolist()
-        cur_state.append(env.yaw[env.lookat_id].tolist())
-        cur_state.append(env.pitch[env.lookat_id].tolist())
-        state_hist.append(cur_state)
-        ref = [env.target_yaw[env.lookat_id].tolist(),env.target_pitch[env.lookat_id].tolist()]
-        ref_hist.append(ref)
+        # cur_time = env.episode_length_buf[env.lookat_id].item() / 50
+        # time_hist.append(cur_time)
+        # cmd_hist.append((env.target_position[env.lookat_id, :]).tolist())
+        # cur_state = env.ee_pos[env.lookat_id, :].tolist()
+        # cur_state.append(env.yaw[env.lookat_id].tolist())
+        # cur_state.append(env.pitch[env.lookat_id].tolist())
+        # state_hist.append(cur_state)
+        # ref = [env.target_yaw[env.lookat_id].tolist(),env.target_pitch[env.lookat_id].tolist()]
+        # ref_hist.append(ref)
 
 
-        real_delta_yaw = env.target_yaw[env.lookat_id].tolist() - env.yaw[env.lookat_id].tolist()
-        real_delta_pitch = env.target_pitch[env.lookat_id].tolist() - env.pitch[env.lookat_id].tolist()
-        finger_force = torch.norm(env.contact_forces[env.lookat_id, env.finger_indices, :],dim=1).tolist()
-        finger_force = env.contact_forces[env.lookat_id, env.finger_indices, :].tolist()
+        # real_delta_yaw = env.target_yaw[env.lookat_id].tolist() - env.yaw[env.lookat_id].tolist()
+        # real_delta_pitch = env.target_pitch[env.lookat_id].tolist() - env.pitch[env.lookat_id].tolist()
+        # finger_force = torch.norm(env.contact_forces[env.lookat_id, env.finger_indices, :],dim=1).tolist()
+        # finger_force = env.contact_forces[env.lookat_id, env.finger_indices, :].tolist()
         # finger_force_hist.append(finger_force)
         # print("----------\ntime:", cur_time, 
         #       "\nbase_target_pos:", env.base_target_pos[env.lookat_id, :].tolist(),
@@ -210,7 +210,7 @@ def play(args):
             #   "\ndof_pos:",env.dof_pos,
             #   "\nbox_position:",[round(x,2) for x in env.box_states[env.lookat_id,:3].tolist()],
         
-        id = env.lookat_id
+        # id = env.lookat_id
         # if cur_time == 0 or i == 3*int(env.max_episode_length)-1:  #or (cur_time % env_cfg.commands.resampling_time)==0 
         #     time_hist = np.array(time_hist[:-3])
         #     cmd_hist = np.array(cmd_hist[:-3])
