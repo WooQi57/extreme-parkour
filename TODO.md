@@ -89,3 +89,7 @@ lowlevel things dimensions
 ## 1.22
 1. clip pos lowlevel actions
 2. lowlevel add backoff
+
+## 2.6
+1. record offline traj for testing?
+2. check feet names and indices 1057

@@ -80,7 +80,7 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
         num_dummy_dof = 1
         
         n_scan = 132
-        n_priv = 3+3 +3
+        n_priv = 3 +3 +3
         n_priv_latent = 4 + 1 + 14 +14
         n_proprio = 3 + 2 + 2 + 5 + 2 + 13*3 + 4
         history_len = 10
@@ -124,7 +124,7 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
             tracking_yaw = 1.5  # 0.5
             tracking_pitch = 1.5  # 0.5
             tracking_gripper = 0.5
-            tracking_ee_height = 0.3
+            tracking_ee_height = 0.1*0 #0.3
             # regularization rewards
             lin_vel_z = -1.0
             ang_vel_xy = -0.05
@@ -167,6 +167,7 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
                 "demo": 0.0,}
         terrain_proportions = list(terrain_dict.values())
         y_range = [-0.4, 0.4]
+        measure_heights = True
 
     class commands( LeggedRobotCfg.commands):
         num_commands = 5 # default: lin_vel_x, lin_vel_y, yaw, pitch, gripper close
@@ -174,7 +175,7 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
             lin_vel_x = [-0.5, 1.5] # min max [m/s]
             lin_vel_y = [-0.5, 0.5]   # min max [m/s]
             yaw = [-1, 1]    # min max [rad]
-            pitch = [-0.7, 0.3]  # min max [rad]
+            pitch = [-0.7, 0.7]  # min max [rad]
         lin_vel_clip = 0.02  # 0.2
         ang_clip = 0.05
         
@@ -190,4 +191,5 @@ class Go1GPRoughCfgPPO( LeggedRobotCfgPPO ):
     class estimator( LeggedRobotCfgPPO.estimator):
         priv_states_dim = Go1GPRoughCfg.env.n_priv
         num_prop = Go1GPRoughCfg.env.n_proprio
+        num_scan = Go1GPRoughCfg.env.n_scan
   

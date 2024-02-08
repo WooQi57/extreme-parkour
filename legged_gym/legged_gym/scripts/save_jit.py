@@ -61,24 +61,24 @@ class HardwareVisionNN(nn.Module):
 
         self.estimator = Estimator(input_dim=num_prop, output_dim=num_priv_explicit, hidden_dims=[128, 64])
         
-    def forward(self, obs, depth_latent):
+    def forward(self, obs):#, depth_latent=None):
         obs[:, self.num_prop+self.num_scan : self.num_prop+self.num_scan+self.num_priv_explicit] = self.estimator(obs[:, :self.num_prop])
-        return self.actor(obs, hist_encoding=True, eval=False, scandots_latent=depth_latent)
+        return self.actor(obs, hist_encoding=True, eval=False)#, scandots_latent=depth_latent)
         # return obs, depth_latent
 
 def play(args):    
     load_run = "../../logs/parkour_new/" + args.exptid
     checkpoint = args.checkpoint
 
-    n_priv_explicit = 3 + 3 + 3
-    n_priv_latent = 4 + 1 + 12 +12
-    num_scan = 132
-    num_actions = 12
+    n_priv_explicit = 3 #+ 3 + 3
+    n_priv_latent = 4 + 1 + 14+14#12 +12
+    num_scan = 132*0
+    num_actions = 13 #12
     
     # depth_buffer_len = 2
     depth_resized = (87, 58)
     
-    n_proprio = 3 + 2 + 3 + 4 + 36 + 4 +1
+    n_proprio = 3 + 2 + 2 + 5 + 13*3 + 4 #3 + 2 + 3 + 4 + 36 + 4 +1
     history_len = 10
 
     device = torch.device('cpu')
@@ -87,15 +87,16 @@ def play(args):
     load_run = os.path.dirname(load_path)
     print(f"Loading model from: {load_path}")
     ac_state_dict = torch.load(load_path, map_location=device)
-    # policy.load_state_dict(ac_state_dict['model_state_dict'], strict=False)
-    policy.actor.load_state_dict(ac_state_dict['depth_actor_state_dict'], strict=True)
+    policy.load_state_dict(ac_state_dict['model_state_dict'], strict=False)
+    # policy.actor.load_state_dict(ac_state_dict['depth_actor_state_dict'], strict=True)
     policy.estimator.load_state_dict(ac_state_dict['estimator_state_dict'])
     
     policy = policy.to(device)#.cpu()
     if not os.path.exists(os.path.join(load_run, "traced")):
         os.mkdir(os.path.join(load_run, "traced"))
-    state_dict = {'depth_encoder_state_dict': ac_state_dict['depth_encoder_state_dict']}
-    torch.save(state_dict, os.path.join(load_run, "traced", args.exptid + "-" + str(checkpoint) + "-vision_weight.pt"))
+
+    # state_dict = {'depth_encoder_state_dict': ac_state_dict['depth_encoder_state_dict']}
+    # torch.save(state_dict, os.path.join(load_run, "traced", args.exptid + "-" + str(checkpoint) + "-vision_weight.pt"))
 
     # Save the traced actor
     policy.eval()
@@ -104,9 +105,9 @@ def play(args):
         
         obs_input = torch.ones(num_envs, n_proprio + num_scan + n_priv_explicit + n_priv_latent + history_len*n_proprio, device=device)
         depth_latent = torch.ones(1, 32, device=device)
-        test = policy(obs_input, depth_latent)
+        test = policy(obs_input)
         
-        traced_policy = torch.jit.trace(policy, (obs_input, depth_latent))
+        traced_policy = torch.jit.trace(policy, obs_input)
         
         # traced_policy = torch.jit.script(policy)
         save_path = os.path.join(load_run, "traced", args.exptid + "-" + str(checkpoint) + "-base_jit.pt")
