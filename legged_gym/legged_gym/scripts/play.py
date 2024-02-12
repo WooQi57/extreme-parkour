@@ -47,12 +47,14 @@ import matplotlib.pyplot as plt
 from time import time, sleep
 from legged_gym.utils import webviewer
 
-def get_load_path(root, load_run=-1, checkpoint=-1, model_name_include="model"):
+def get_load_path(root, exptid, load_run=-1, checkpoint=-1, model_name_include="model"):
     if checkpoint==-1:
         models = [file for file in os.listdir(root) if model_name_include in file]
         models.sort(key=lambda m: '{0:0>15}'.format(m))
         model = models[-1]
         checkpoint = model.split("_")[-1].split(".")[0]
+    else:
+        model = "{}-{}-base_jit.pt".format(exptid,checkpoint) 
     return model, checkpoint
 
 def play(args):
@@ -122,11 +124,10 @@ def play(args):
 
     # load policy
     train_cfg.runner.resume = True
-    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model_7000.", return_log_dir=True)
-    
+    ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="model", return_log_dir=True)
     if args.use_jit:
         path = os.path.join(log_pth, "traced")
-        model, checkpoint = get_load_path(root=path, checkpoint=args.checkpoint)
+        model, checkpoint = get_load_path(root=path, exptid=args.exptid, checkpoint=args.checkpoint)
         path = os.path.join(path, model)
         print("Loading jit for policy: ", path)
         policy_jit = torch.jit.load(path, map_location=env.device)
@@ -151,7 +152,7 @@ def play(args):
                     actions, depth_latent = policy_jit(obs.detach(), False, depth_buffer, depth_latent)
             else:
                 obs_jit = torch.cat((obs.detach()[:, :env_cfg.env.n_proprio+env_cfg.env.n_priv], obs.detach()[:, -env_cfg.env.history_len*env_cfg.env.n_proprio:]), dim=1)
-                actions = policy(obs_jit)
+                actions = policy_jit(obs_jit)
         else:
             if env.cfg.depth.use_camera:
                 if infos["depth"] is not None:
@@ -168,6 +169,8 @@ def play(args):
             if hasattr(ppo_runner.alg, "depth_actor"):
                 actions = ppo_runner.alg.depth_actor(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
             else:
+                # obs[0,env_cfg.env.n_proprio+env_cfg.env.n_scan:env_cfg.env.n_proprio+env_cfg.env.n_scan+env_cfg.env.n_priv] = estimator(obs[:, :env_cfg.env.n_proprio])
+                # print((obs==0).sum().item())
                 actions = policy(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
         # print(actions[:,-1])
         obs, _, rews, dones, infos = env.step(actions.detach())
