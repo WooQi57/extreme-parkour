@@ -412,22 +412,15 @@ class Go1GP(BaseTask):
                             imu_obs,    #[1,2]
                             self.delta_yaw[:, None],    #[1,1]
                             self.delta_pitch[:, None],   #[1,1]
-                            self.commands,  #[1,5]
+                            self.commands,  #[1,4]
                             self.reindex((self.dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),  #[1,13] contain no passive dof
                             self.reindex(self.dof_vel * self.obs_scales.dof_vel),   #[1,13]
                             self.reindex(self.action_history_buf[:, -1]),   #[1,13]
-                            self.reindex_feet(self.contact_filt.float()-0.5),   #[1,4]  
+                            self.reindex_feet(self.contact_filt.float()-0.5),   #[1,4]
                             ),dim=-1)
-                            
-                            # (self.env_class != 17).float()[:, None], #[1,1]
-                            # (self.env_class == 17).float()[:, None], #[1,1]
-        
-        priv_explicit = self.base_lin_vel * self.obs_scales.lin_vel
-
-        # print(f"explicit privelege:{priv_explicit}")
-        # priv_explicit = torch.cat((self.base_lin_vel * self.obs_scales.lin_vel,
-        #                            0 * self.base_lin_vel,
-        #                            0 * self.base_lin_vel), dim=-1)
+        priv_explicit = torch.cat((self.base_lin_vel * self.obs_scales.lin_vel,
+                                   0 * self.base_lin_vel,
+                                   0 * self.base_lin_vel), dim=-1)
         priv_latent = torch.cat((
             self.mass_params_tensor,
             self.friction_coeffs_tensor,
@@ -436,10 +429,11 @@ class Go1GP(BaseTask):
         ), dim=-1)
         if self.cfg.terrain.measure_heights:
             heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.3 - self.measured_heights, -1, 1.)
-            self.obs_buf = torch.cat([obs_buf, heights, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
+            self.obs_buf = torch.cat([obs_buf, heights*0, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
         else:
             self.obs_buf = torch.cat([obs_buf, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
-        # obs_buf[:, 5] = 0  # mask yaw in proprioceptive history
+        obs_buf[:, 5] = 0  # mask yaw in proprioceptive history
+        # obs_buf[:, 6:8] = 0  # mask yaw in proprioceptive history
         self.obs_history_buf = torch.where(
             (self.episode_length_buf <= 1)[:, None, None], 
             torch.stack([obs_buf] * self.cfg.env.history_len, dim=1),
@@ -609,7 +603,11 @@ class Go1GP(BaseTask):
         # set small commands to zero
         self.commands[env_ids, :2] *= torch.abs(self.commands[env_ids, :2]) > self.cfg.commands.lin_vel_clip
         self.commands[env_ids, 2:4] *= torch.abs(self.commands[env_ids, 2:4]) > self.cfg.commands.ang_clip
-        # print(f"commands:{self.commands}")
+        # self.commands *= 0
+        # self.commands[:, 0] = 0.5
+        # print(f"commands: {self.commands}")
+        # print(f"obs:{self.obs_buf[0]}")
+        # print(f"actions:{self.actions[0]}")
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.
@@ -1314,10 +1312,10 @@ class Go1GP(BaseTask):
         lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - cur_vel), dim=1)
         return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)
 
-    def _reward_tracking_ee_height(self):
-        ee_height = self.ee_pos[:,2]
-        rew = torch.exp(-torch.abs(ee_height))
-        return rew
+    # def _reward_tracking_ee_height(self):
+    #     ee_height = self.ee_pos[:,2]
+    #     rew = torch.exp(-torch.abs(ee_height))
+    #     return rew
     
     def _reward_tracking_yaw(self):
         rew = torch.exp(-torch.abs(self.commands[:, 2] - self.yaw))

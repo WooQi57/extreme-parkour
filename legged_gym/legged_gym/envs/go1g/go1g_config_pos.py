@@ -80,7 +80,7 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
         num_dummy_dof = 1
         
         n_scan = 132
-        n_priv = 3#+3 +3
+        n_priv = 3+3 +3
         n_priv_latent = 4 + 1 + 14 +14
         n_proprio = 3 + 2 + 2 + 5 + 13*3 + 4
         history_len = 10
@@ -124,7 +124,6 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
             tracking_yaw = 1.5  # 0.5
             tracking_pitch = 1.5  # 0.5
             tracking_gripper = 0.5
-            tracking_ee_height = 0.1*0 #0.3
             # regularization rewards
             lin_vel_z = -1.0
             ang_vel_xy = -0.05

@@ -1,15 +1,15 @@
 #!/bin/bash
 #
-#SBATCH --job-name="101-88-lowlevel"
+#SBATCH --job-name="000-89-lowlevel"
 #SBATCH --partition=iris
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/101-88-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/000-89-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
 #SBATCH --time=12:00:00 # Max job length is 0.5 day
 #SBATCH --nodes=1 # Only use one node (machine)
-#SBATCH --mem=16G
-#SBATCH --exclude=iris1 # Don't run on iris1
+#SBATCH --mem=32G
+#SBATCH --exclude=iris-hp-z8,iris1,iris2,iris3,iris4
 
 ###SBATCH --mem-per-cpu=2G
 
@@ -30,10 +30,8 @@ nvidia-smi
 echo "task description:
     add 6 zeros in priv
     add 0.02s delay in sim 
-    detect height part in obs, n_scan =132
-    pitrch range -0.7 0.7
-    no 17 stuff
-    run lowlevel with low_ee_pos reward 0.10 in stead of0.3"
+    detect height part*0 in obs, n_scan =132
+    no 17 stuff"
 #     duplicate
 #     high between finger 0.5
 #     approach with stress on z:
@@ -41,7 +39,7 @@ echo "task description:
 #         err[:,2]*=5
 # --------------------------------------------"
 
-srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go1gp --exptid 101-88-lowlevelbl-reset --device cuda:0'
+srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go1gp --exptid 000-89-lowlevelbl-reset --device cuda:0'
 
 # done
 echo "Done"
