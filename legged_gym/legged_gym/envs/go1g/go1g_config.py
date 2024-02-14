@@ -175,11 +175,11 @@ class Go1GRoughCfg( LeggedRobotCfg ):
     class commands( LeggedRobotCfg.commands):
         num_commands = 5 # default: lin_vel_x, lin_vel_y, yaw, pitch, gripper close
         class max_ranges:
-            lin_vel_x = [0., 1.5] # min max [m/s]
+            lin_vel_x = [-0.5, 1.5] # min max [m/s]
             lin_vel_y = [-0.5, 0.5]   # min max [m/s]
             yaw = [-1, 1]    # min max [rad]
             pitch = [-0.7, 0.7]  # min max [rad]
-        lin_vel_clip = 0.2
+        lin_vel_clip = 0.02  # 0.2
         ang_clip = 0.05
         
 class Go1GRoughCfgPPO( LeggedRobotCfgPPO ):
@@ -188,7 +188,7 @@ class Go1GRoughCfgPPO( LeggedRobotCfgPPO ):
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'rough_a1'
-        resume = False
+        resume = True
     class estimator( LeggedRobotCfgPPO.estimator):
         priv_states_dim = Go1GRoughCfg.env.n_priv
         num_prop = Go1GRoughCfg.env.n_proprio
