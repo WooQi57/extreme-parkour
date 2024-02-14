@@ -82,11 +82,24 @@ class Go1GRoughCfg( LeggedRobotCfg ):
         n_scan = 132
         n_priv = 3+3 +3
         n_priv_latent = 4 + 1 + 14 +14
-        n_proprio = 3 + 2 + 2 + 5 + 2 + 13*3 + 4
+        n_proprio = 3 + 2 + 2 + 5 + 13*3 + 4
         history_len = 10
 
         num_observations = n_proprio + n_scan + history_len*n_proprio + n_priv_latent + n_priv #n_scan + n_proprio + n_priv #187 + 47 + 5 + 12 
 
+    class noise:
+        add_noise = False
+        noise_level = 1.0 # scales other values 1.0
+        quantize_height = True
+        class noise_scales:
+            rotation = 0.0
+            dof_pos = 0.01
+            dof_vel = 0.05
+            lin_vel = 0.05
+            ang_vel = 0.05
+            gravity = 0.02
+            height_measurements = 0.02
+            
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
         control_type = 'P'

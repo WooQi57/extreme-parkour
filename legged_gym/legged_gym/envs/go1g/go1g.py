@@ -404,16 +404,23 @@ class Go1G(BaseTask):
         if self.global_counter % 5 == 0:
             self.delta_yaw = self.commands[:, 2] - self.yaw
             self.delta_pitch = self.commands[:, 3] - self.pitch
+
+        # add noise to observation
+        base_ang_vel = self.get_noisy_measurement(self.base_ang_vel, 0*self.cfg.noise.noise_scales.ang_vel)
+        imu_obs = self.get_noisy_measurement(imu_obs, 0*self.cfg.noise.noise_scales.rotation)
+        delta_yaw = self.get_noisy_measurement(self.delta_yaw, 0*self.cfg.noise.noise_scales.rotation)
+        delta_pitch = self.get_noisy_measurement(self.delta_pitch, 0*self.cfg.noise.noise_scales.rotation)
+        dof_pos = self.get_noisy_measurement(self.dof_pos, 0*self.cfg.noise.noise_scales.dof_pos)
+        dof_vel = self.get_noisy_measurement(self.dof_vel, 0*self.cfg.noise.noise_scales.dof_vel)
+
         obs_buf = torch.cat((#skill_vector, 
-                            self.base_ang_vel  * self.obs_scales.ang_vel,   #[1,3]
+                            base_ang_vel  * self.obs_scales.ang_vel,   #[1,3]
                             imu_obs,    #[1,2]
-                            self.delta_yaw[:, None],    #[1,1]
-                            self.delta_pitch[:, None],   #[1,1]
-                            self.commands,  #[1,4]
-                            (self.env_class != 17).float()[:, None], #[1,1]
-                            (self.env_class == 17).float()[:, None], #[1,1]
-                            self.reindex((self.dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),  #[1,13] contain no passive dof
-                            self.reindex(self.dof_vel * self.obs_scales.dof_vel),   #[1,13]
+                            delta_yaw[:, None],    #[1,1]
+                            delta_pitch[:, None],   #[1,1]
+                            self.commands,  #[1,5]
+                            self.reindex((dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),  #[1,13] contain no passive dof
+                            self.reindex(dof_vel * self.obs_scales.dof_vel),   #[1,13]
                             self.reindex(self.action_history_buf[:, -1]),   #[1,13]
                             self.reindex_feet(self.contact_filt.float()-0.5),   #[1,4]
                             ),dim=-1)
@@ -428,7 +435,7 @@ class Go1G(BaseTask):
         ), dim=-1)
         if self.cfg.terrain.measure_heights:
             heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.3 - self.measured_heights, -1, 1.)
-            self.obs_buf = torch.cat([obs_buf, heights, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
+            self.obs_buf = torch.cat([obs_buf, heights*0, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
         else:
             self.obs_buf = torch.cat([obs_buf, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
         obs_buf[:, 6:8] = 0  # mask yaw in proprioceptive history
@@ -601,6 +608,12 @@ class Go1G(BaseTask):
         # set small commands to zero
         self.commands[env_ids, :2] *= torch.abs(self.commands[env_ids, :2]) > self.cfg.commands.lin_vel_clip
         self.commands[env_ids, 2:4] *= torch.abs(self.commands[env_ids, 2:4]) > self.cfg.commands.ang_clip
+        # self.commands *= 0
+        # self.commands[:, 0] = 0.3
+        # self.commands[:, 3] = -0.1
+        # print(f"commands: {self.commands}")
+        # print(f"obs:{self.obs_buf[0]}")
+        # print(f"actions:{self.actions[0]}")
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.
@@ -621,7 +634,6 @@ class Go1G(BaseTask):
                 torques = self.p_gains*(actions_scaled + self.default_dof_pos_all - self.dof_pos) - self.d_gains*self.dof_vel
             else:
                 torques = self.motor_strength[0] * self.p_gains*(actions_scaled + self.default_dof_pos_all - self.dof_pos) - self.motor_strength[1] * self.d_gains*self.dof_vel
-                
         elif control_type=="V":
             torques = self.p_gains*(actions_scaled - self.dof_vel) - self.d_gains*(self.dof_vel - self.last_dof_vel)/self.sim_params.dt
         elif control_type=="T":
@@ -1299,7 +1311,7 @@ class Go1G(BaseTask):
     def _reward_tracking_lin_vel(self):
         # Tracking of linear velocity commands (xy axes)
         cur_vel = self.root_states[:, 7:9]
-        lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - cur_vel), dim=1)
+        lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:,:2]), dim=1)
         return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)
     
     def _reward_tracking_yaw(self):

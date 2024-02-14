@@ -120,7 +120,7 @@ class LeggedRobotCfg(BaseConfig):
         clip_actions = 1.2
     class noise:
         add_noise = False
-        noise_level = 1.0 # scales other values
+        noise_level = 1.0 # scales other values 1.0
         quantize_height = True
         class noise_scales:
             rotation = 0.0
@@ -284,7 +284,7 @@ class LeggedRobotCfg(BaseConfig):
         motor_strength_range = [0.8, 1.2]
 
         delay_update_global_steps = 24 * 8000
-        action_delay = False
+        action_delay = True
         action_curr_step = [1, 1]
         action_curr_step_scratch = [0, 1]
         action_delay_view = 1
@@ -404,7 +404,7 @@ class LeggedRobotCfgPPO(BaseConfig):
         policy_class_name = 'ActorCritic'
         algorithm_class_name = 'PPO'
         num_steps_per_env = 24 # per iteration
-        max_iterations = 2000 # number of policy updates 50000
+        max_iterations = 9000 # number of policy updates 50000
 
         # logging
         save_interval = 100 # check for potential saves every this many iterations
