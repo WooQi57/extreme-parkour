@@ -70,7 +70,7 @@ def play(args):
     load_run = "../../logs/parkour_new/" + args.exptid
     checkpoint = args.checkpoint
 
-    n_priv_explicit = 3 #+ 3 + 3
+    n_priv_explicit = 3 + 3 + 3
     n_priv_latent = 4 + 1 + 14+14#12 +12
     num_scan = 132
     num_actions = 13 #12

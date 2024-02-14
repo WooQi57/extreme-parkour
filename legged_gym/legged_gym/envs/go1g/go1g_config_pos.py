@@ -87,6 +87,19 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
 
         num_observations = n_proprio + n_scan + history_len*n_proprio + n_priv_latent + n_priv #n_scan + n_proprio + n_priv #187 + 47 + 5 + 12 
 
+    class noise:
+        add_noise = False
+        noise_level = 1.0 # scales other values 1.0
+        quantize_height = True
+        class noise_scales:
+            rotation = 0.0
+            dof_pos = 0.01
+            dof_vel = 0.05
+            lin_vel = 0.05
+            ang_vel = 0.05
+            gravity = 0.02
+            height_measurements = 0.02
+            
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
         control_type = 'P'
@@ -166,7 +179,6 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
                 "demo": 0.0,}
         terrain_proportions = list(terrain_dict.values())
         y_range = [-0.4, 0.4]
-        measure_heights = True
 
     class commands( LeggedRobotCfg.commands):
         num_commands = 5 # default: lin_vel_x, lin_vel_y, yaw, pitch, gripper close
@@ -175,20 +187,38 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
             lin_vel_y = [-0.5, 0.5]   # min max [m/s]
             yaw = [-1, 1]    # min max [rad]
             pitch = [-0.7, 0.7]  # min max [rad]
-        lin_vel_clip = 0.02  # 0.2
+        lin_vel_clip = 0.1  #0.2
         ang_clip = 0.05
+
+    class sim (LeggedRobotCfg.sim):
+        dt =  0.005
+        substeps = 1
+        gravity = [0., 0. ,-9.81]  # [m/s^2]
+        up_axis = 1  # 0 is y, 1 is z
+
+        class physx:
+            num_threads = 10
+            solver_type = 1  # 0: pgs, 1: tgs
+            num_position_iterations = 4
+            num_velocity_iterations = 0
+            contact_offset = 0.01  # [m]
+            rest_offset = 0.00   # 0.0 [m]
+            bounce_threshold_velocity = 0.5 #0.5 [m/s]
+            max_depenetration_velocity = 1.0
+            max_gpu_contact_pairs = 2**23 #2**24 -> needed for 8000 envs and more
+            default_buffer_size_multiplier = 5
+            contact_collection = 2 # 0: never, 1: last sub-step, 2: all sub-steps (default=2)
         
 class Go1GPRoughCfgPPO( LeggedRobotCfgPPO ):
     class algorithm( LeggedRobotCfgPPO.algorithm ):
         entropy_coef = 0.01
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
-        experiment_name = 'rough_a1'
+        experiment_name = 'go2'
         resume = False
-        max_iterations = 9000 # number of policy updates 50000
+        max_iterations = 10000 # number of policy updates 50000
 
     class estimator( LeggedRobotCfgPPO.estimator):
         priv_states_dim = Go1GPRoughCfg.env.n_priv
         num_prop = Go1GPRoughCfg.env.n_proprio
-        num_scan = Go1GPRoughCfg.env.n_scan
   
