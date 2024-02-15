@@ -124,9 +124,10 @@ class Go1GP(BaseTask):
         actions.to(self.device)
         self.action_history_buf = torch.cat([self.action_history_buf[:, 1:].clone(), actions[:, None, :].clone()], dim=1)
         if self.cfg.domain_rand.action_delay:
-            if self.global_counter % self.cfg.domain_rand.delay_update_global_steps == 0:
-                if len(self.cfg.domain_rand.action_curr_step) != 0:
-                    self.delay = torch.tensor(self.cfg.domain_rand.action_curr_step.pop(0), device=self.device, dtype=torch.float)
+            # if self.global_counter % self.cfg.domain_rand.delay_update_global_steps == 0:
+            #     if len(self.cfg.domain_rand.action_curr_step) != 0:
+            #         self.delay = torch.tensor(self.cfg.domain_rand.action_curr_step.pop(0), device=self.device, dtype=torch.float)
+            self.delay = torch.tensor(np.random.choice(self.cfg.domain_rand.action_curr_step), device=self.device, dtype=torch.float)
             if self.viewer:
                 self.delay = torch.tensor(self.cfg.domain_rand.action_delay_view, device=self.device, dtype=torch.float)
             indices = -self.delay -1
@@ -152,7 +153,7 @@ class Go1GP(BaseTask):
         self.obs_buf = torch.clip(self.obs_buf, -clip_obs, clip_obs)
         if self.privileged_obs_buf is not None:
             self.privileged_obs_buf = torch.clip(self.privileged_obs_buf, -clip_obs, clip_obs)
-        self.extras["delta_yaw_ok"] = self.delta_yaw < 0.6
+        # self.extras["delta_yaw_ok"] = self.delta_yaw < 0.6
         if self.cfg.depth.use_camera and self.global_counter % self.cfg.depth.update_interval == 0:
             self.extras["depth"] = self.depth_buffer[:, -2]  # have already selected last one
         else:
@@ -405,13 +406,13 @@ class Go1GP(BaseTask):
         """
         imu_obs = torch.stack((self.roll, self.pitch), dim=1)
         # if self.global_counter % 5 == 0:
-        self.delta_yaw = self.commands[:, 2] - self.yaw
+        # self.delta_yaw = self.commands[:, 2] - self.yaw
         self.delta_pitch = self.commands[:, 3] - self.pitch
 
         # add noise to observation
         base_ang_vel = self.get_noisy_measurement(self.base_ang_vel, 0*self.cfg.noise.noise_scales.ang_vel)
         imu_obs = self.get_noisy_measurement(imu_obs, 0*self.cfg.noise.noise_scales.rotation)
-        delta_yaw = self.get_noisy_measurement(self.delta_yaw, 0*self.cfg.noise.noise_scales.rotation)
+        # delta_yaw = self.get_noisy_measurement(self.delta_yaw, 0*self.cfg.noise.noise_scales.rotation)
         delta_pitch = self.get_noisy_measurement(self.delta_pitch, 0*self.cfg.noise.noise_scales.rotation)
         dof_pos = self.get_noisy_measurement(self.dof_pos, 0*self.cfg.noise.noise_scales.dof_pos)
         dof_vel = self.get_noisy_measurement(self.dof_vel, 0*self.cfg.noise.noise_scales.dof_vel)
@@ -419,7 +420,6 @@ class Go1GP(BaseTask):
         obs_buf = torch.cat((#skill_vector, 
                             base_ang_vel  * self.obs_scales.ang_vel,   #[1,3]
                             imu_obs,    #[1,2]
-                            delta_yaw[:, None],    #[1,1]
                             delta_pitch[:, None],   #[1,1]
                             self.commands,  #[1,5]
                             self.reindex((dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),  #[1,13] contain no passive dof
@@ -427,6 +427,7 @@ class Go1GP(BaseTask):
                             self.reindex(self.action_history_buf[:, -1]),   #[1,13]
                             self.reindex_feet(self.contact_filt.float()-0.5),   #[1,4]
                             ),dim=-1)
+                            # delta_yaw[:, None],    #[1,1]
         priv_explicit = torch.cat((self.base_lin_vel * self.obs_scales.lin_vel,
                                    0 * self.base_lin_vel,
                                    0 * self.base_lin_vel), dim=-1)
@@ -438,11 +439,10 @@ class Go1GP(BaseTask):
         ), dim=-1)
         if self.cfg.terrain.measure_heights:
             heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.3 - self.measured_heights, -1, 1.)
-            self.obs_buf = torch.cat([obs_buf, heights*0, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
+            self.obs_buf = torch.cat([obs_buf, heights*0, priv_explicit, priv_latent, 0*self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
         else:
             self.obs_buf = torch.cat([obs_buf, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
-        obs_buf[:, 5] = 0  # mask yaw in proprioceptive history
-        # obs_buf[:, 6:8] = 0  # mask yaw in proprioceptive history
+        # obs_buf[:, 5] = 0  # mask yaw in proprioceptive history
         self.obs_history_buf = torch.where(
             (self.episode_length_buf <= 1)[:, None, None], 
             torch.stack([obs_buf] * self.cfg.env.history_len, dim=1),
@@ -600,7 +600,7 @@ class Go1GP(BaseTask):
         """
         self.commands[env_ids, 0] = torch_rand_float(self.command_ranges["lin_vel_x"][0], self.command_ranges["lin_vel_x"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 1] = torch_rand_float(self.command_ranges["lin_vel_y"][0], self.command_ranges["lin_vel_y"][1], (len(env_ids), 1), device=self.device).squeeze(1)
-        self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["yaw"][0], self.command_ranges["yaw"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["omega"][0], self.command_ranges["omega"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["pitch"][0], self.command_ranges["pitch"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 4] = torch_rand_float(-1, 1,(len(env_ids), 1), device=self.device).squeeze(1)
         # if self.cfg.commands.heading_command:
@@ -613,7 +613,7 @@ class Go1GP(BaseTask):
         self.commands[env_ids, :2] *= torch.abs(self.commands[env_ids, :2]) > self.cfg.commands.lin_vel_clip
         self.commands[env_ids, 2:4] *= torch.abs(self.commands[env_ids, 2:4]) > self.cfg.commands.ang_clip
         # self.commands *= 0
-        # self.commands[:, 0] = 0.3
+        # self.commands[:, 0] = 0.5
         # self.commands[:, 3] = -0.1
         # print(f"commands: {self.commands}")
         # print(f"obs:{self.obs_buf[0]}")
@@ -637,6 +637,7 @@ class Go1GP(BaseTask):
             if not self.cfg.domain_rand.randomize_motor:  # TODO add strength to gain directly
                 torques = self.p_gains*(actions_scaled + self.default_dof_pos_all - self.dof_pos) - self.d_gains*self.dof_vel
             else:
+                self.target_angles = self.default_dof_pos_all + actions_scaled
                 torques = self.motor_strength[0] * self.p_gains*(actions_scaled + self.default_dof_pos_all - self.dof_pos) - self.motor_strength[1] * self.d_gains*self.dof_vel
         elif control_type=="V":
             torques = self.p_gains*(actions_scaled - self.dof_vel) - self.d_gains*(self.dof_vel - self.last_dof_vel)/self.sim_params.dt
@@ -1322,7 +1323,7 @@ class Go1GP(BaseTask):
         return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)
     
     def _reward_tracking_yaw(self):
-        rew = torch.exp(-torch.abs(self.commands[:, 2] - self.yaw))
+        rew = torch.exp(-torch.abs(self.commands[:, 2] - self.base_ang_vel[:, 2]))
         return rew
 
     def _reward_tracking_pitch(self):

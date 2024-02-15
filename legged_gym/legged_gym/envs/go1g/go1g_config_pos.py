@@ -82,7 +82,7 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
         n_scan = 132
         n_priv = 3+3 +3
         n_priv_latent = 4 + 1 + 14 +14
-        n_proprio = 3 + 2 + 2 + 5 + 13*3 + 4
+        n_proprio = 3 + 2 + 1 + 5 + 13*3 + 4
         history_len = 10
 
         num_observations = n_proprio + n_scan + history_len*n_proprio + n_priv_latent + n_priv #n_scan + n_proprio + n_priv #187 + 47 + 5 + 12 
@@ -125,7 +125,7 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
     class domain_rand( LeggedRobotCfg.domain_rand):
         delay_update_global_steps = 24 * 8000
         action_delay = True
-        action_curr_step = [1, 1]
+        action_curr_step = [0, 2, 1]
         action_curr_step_scratch = [0, 1]
         action_delay_view = 1
         action_buf_len = 8
@@ -181,13 +181,13 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
         y_range = [-0.4, 0.4]
 
     class commands( LeggedRobotCfg.commands):
-        num_commands = 5 # default: lin_vel_x, lin_vel_y, yaw, pitch, gripper close
+        num_commands = 5 # default: lin_vel_x, lin_vel_y, omega, pitch, gripper close
         class max_ranges:
             lin_vel_x = [-0.5, 1.5] # min max [m/s]
             lin_vel_y = [-0.5, 0.5]   # min max [m/s]
-            yaw = [-1, 1]    # min max [rad]
+            omega = [-0.7, 0.7]    # min max [rad/s]
             pitch = [-0.7, 0.7]  # min max [rad]
-        lin_vel_clip = 0.1  #0.2
+        lin_vel_clip = 0.02  #0.2
         ang_clip = 0.05
 
     class sim (LeggedRobotCfg.sim):

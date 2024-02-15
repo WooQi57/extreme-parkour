@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-#SBATCH --job-name="100-90-lowlevel"
+#SBATCH --job-name="000-92-lowlevel"
 #SBATCH --partition=iris
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/100-90-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/000-92-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
 #SBATCH --time=12:00:00 # Max job length is 0.5 day
@@ -28,6 +28,8 @@ nvidia-smi
 # sample process
 # srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python /iris/u/wuqi23/doggybot/test.py'
 echo "task description:
+    random delay [0,2,1] for action
+    change observation from delta yaw to omega [-0.7,0.7]
     lin_vel_clip = 0.1
     lin_vel_x = [-0.5, 1.5]
     lin vel reward use base vel
@@ -44,7 +46,7 @@ echo "task description:
 #         err[:,2]*=5
 # --------------------------------------------"
 
-srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go1gp --exptid 100-90-lowlevel --device cuda:0'
+srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go1gp --exptid 000-92-rnddelay --device cuda:0'
 
 # done
 echo "Done"

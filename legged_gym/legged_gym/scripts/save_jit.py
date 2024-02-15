@@ -78,7 +78,7 @@ def play(args):
     # depth_buffer_len = 2
     depth_resized = (87, 58)
     
-    n_proprio = 3 + 2 + 2 + 5 + 13*3 + 4 #3 + 2 + 3 + 4 + 36 + 4 +1
+    n_proprio = 3 + 2 + 1 + 5 + 13*3 + 4 #3 + 2 + 3 + 4 + 36 + 4 +1
     history_len = 10
 
     device = torch.device('cpu')
