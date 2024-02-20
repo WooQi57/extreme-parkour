@@ -67,13 +67,14 @@ class Deploy():
             headless (bool): Run without rendering if True
         """
         self.cfg = cfg
-        self.num_envs = cfg.env.num_envs
+        self.num_envs = 1 #cfg.env.num_envs
         self.num_obs = cfg.env.num_observations
         self.num_privileged_obs = cfg.env.num_privileged_obs
         self.num_actions = cfg.env.num_actions
+        self.obs_scales = self.cfg.normalization.obs_scales
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-        # joint positions offsets and PD gains
+        # prepare action deployment joint positions offsets and PD gains
         # urdf_dof_names =  ['FL_hip_joint', 'FL_thigh_joint', 'FL_calf_joint', 'FR_hip_joint', 'FR_thigh_joint', 'FR_calf_joint',\
         #                     'RL_hip_joint', 'RL_thigh_joint', 'RL_calf_joint', 'RR_hip_joint', 'RR_thigh_joint', 'RR_calf_joint']
         self.dof_names =  ['FR_hip_joint', 'FR_thigh_joint', 'FR_calf_joint', 'FL_hip_joint', 'FL_thigh_joint', 'FL_calf_joint',\
@@ -92,7 +93,16 @@ class Deploy():
                     self.d_gains[i] = self.cfg.control.damping[dof_name]
         self.default_dof_pos = self.default_dof_pos.unsqueeze(0)
         self.default_dof_pos_all[:] = self.default_dof_pos[0]
+        self.default_dof_pos_np = self.default_dof_pos_all[0].cpu().numpy()
 
+        # prepare osbervations buffer
+        self.obs_buf_dim = cfg.env.n_proprio+ cfg.env.n_scan + cfg.env.n_priv + cfg.env.n_priv_latent+ cfg.env.history_len*cfg.env.n_proprio 
+        self.obs_buf = torch.zeros(self.num_envs, self.obs_buf_dim, dtype=torch.float, device=self.device, requires_grad=False)
+        self.scan_buf = torch.zeros(self.num_envs, cfg.env.n_scan, dtype=torch.float, device=self.device, requires_grad=False)
+        self.priv_explicit = torch.zeros(self.num_envs, cfg.env.n_priv, dtype=torch.float, device=self.device, requires_grad=False)
+        self.priv_latent = torch.zeros(self.num_envs, cfg.env.n_priv_latent, dtype=torch.float, device=self.device, requires_grad=False)
+        self.obs_history_buf = torch.zeros(self.num_envs, self.cfg.env.history_len, cfg.env.n_proprio, dtype=torch.float, device=self.device, requires_grad=False)
+        self.obs_init = True
 
     def compute_angle(self,actions):
         # action output
@@ -106,13 +116,26 @@ class Deploy():
     
         # torques = self.p_gains*(actions_scaled + self.default_dof_pos_all - self.dof_pos) - self.d_gains*self.dof_vel
         # output_torques = torch.clip(torques, -self.torque_limits, self.torque_limits)
+    
+    def compute_observations(self, obs_proprio):
+        lowlevel_obs_buf = torch.tensor(obs_proprio,dtype=torch.float, device=self.device).unsqueeze(0)
+        self.obs_buf = torch.cat([lowlevel_obs_buf, self.scan_buf, self.priv_explicit, self.priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
+        # lowlevel_obs_buf[:, 5] = 0  # mask yaw in proprioceptive history
+        # if self.obs_init:
+        #     self.obs_history_buf = torch.stack([lowlevel_obs_buf] * self.cfg.env.history_len, dim=1)
+        # else:
+        #     self.obs_history_buf = torch.cat([self.obs_history_buf[:, 1:], lowlevel_obs_buf.unsqueeze(1)], dim=1)
+        clip_obs = self.cfg.normalization.clip_observations
+        obs = torch.clip(self.obs_buf, -clip_obs, clip_obs)
+        return obs
+        # obs_jit = torch.cat((obs.detach()[:, :env_cfg.env.n_proprio+env_cfg.env.n_priv], obs.detach()[:, -env_cfg.env.history_len*env_cfg.env.n_proprio:]), dim=1)
 
-    def reindex(self, vec):
-        # not needed for go2
-        if self.num_lowlevel_actions==13:
-            return vec[:, [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8, 12]]
-        else:
-            return vec[:, [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]]
+    # def reindex(self, vec):
+    #     # not needed for go2
+    #     if self.num_lowlevel_actions==13:
+    #         return vec[:, [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8, 12]]
+    #     else:
+    #         return vec[:, [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]]
 
     #     self.sim_params = sim_params
     #     self.height_samples = None

@@ -52,15 +52,17 @@ from unitree_go.msg import (
     LowCmd,
     MotorCmd,
 )
+from dynamixel_sdk_custom_interfaces.msg import SetPosition
 import time
+import subprocess
 
 POS_STOP_F = 2.146e9
 VEL_STOP_F = 16000.0
 LEG_DOF = 12
 SDK_DOF = 20
-
-# TODO: add emergency stop
-
+CONTACT_THRESHOLD = [26,29,25,27] #[16,19,15,17]+5
+USE_JIT = True
+WALK_STRAIGHT = False
 
 class DeployNode(Node):
     def __init__(self, policy_args):
@@ -68,11 +70,11 @@ class DeployNode(Node):
 
         # init subcribers
         self.joy_stick_sub = self.create_subscription(
-            WirelessController, "wirelesscontroller", self.joy_stick_cb, 10
+            WirelessController, "wirelesscontroller", self.joy_stick_cb, 1
         )
         self.joy_stick_sub  # prevent unused variable warning
         self.lowlevel_state_sub = self.create_subscription(
-            LowState, "lowstate", self.lowlevel_state_cb, 10
+            LowState, "lowstate", self.lowlevel_state_cb, 1
         )  # "/lowcmd" or  "lf/lowstate" (low frequencies)
         self.lowlevel_state_sub  # prevent unused variable warning
 
@@ -81,11 +83,15 @@ class DeployNode(Node):
         self.joint_vel = np.zeros(LEG_DOF)
 
         # init publishers
-        self.motor_pub = self.create_publisher(LowCmd, "lowcmd", 10)
-        self.motor_pub_freq = 200
-        self.motor_timer = self.create_timer(
-            1.0 / self.motor_pub_freq, self.motor_timer_callback
-        )
+        self.gripper_pub = self.create_publisher(SetPosition, "/set_position", 1)
+        self.gripper_timer = self.create_timer(1.0 / 100, self.gripper_timer_callback)
+        self.gripper_msg = SetPosition()
+        self.gripper_msg.id = 1
+        self.gripper_msg.position = 2000
+
+        self.motor_pub = self.create_publisher(LowCmd, "lowcmd", 1)
+        self.motor_pub_freq = 50
+        self.motor_timer = self.create_timer(1.0 / self.motor_pub_freq, self.motor_timer_callback)
         self.cmd_msg = LowCmd()
 
         # init motor command
@@ -100,95 +106,158 @@ class DeployNode(Node):
         # init policy
         self.init_policy(policy_args)
         self.policy_freq = 50
-        self.policy_timer = self.create_timer(
-            1.0 / self.policy_freq, self.policy_timer_callback
-        )
+        self.policy_timer = self.create_timer( 1.0 / self.policy_freq, self.policy_timer_callback)
+        self.obs_proprio = np.zeros(self.env.cfg.env.n_proprio)
+        self.prev_action = np.zeros(self.env.cfg.env.num_actions)
+        self.command = np.zeros(self.env.cfg.commands.num_commands)
+        if WALK_STRAIGHT:
+            self.command[0] = 0.5
+            self.command[2] = 0.25*0
 
+        # init gripper
+        self.gripper_cmd = 1.0  # TODO: gripper cmd 1:close; -1:open
+        self.start_policy = False
+
+        # standing up
+        self.get_logger().info("Standing up")
+        self.stand_up = False
+        # subprocess.run(["./stand_up_go2 eth0"], shell=True)
+        self.stand_up = True
+
+        # start
         self.start_time = time.monotonic()
+        self.get_logger().info("Press L2 to start policy")
+        self.get_logger().info("Press L1 for emergent stop")
+        self.init_buffer = 0
+        self.foot_contact_buffer = []
+        self.time_hist = []
+        self.obs_time_hist = []
+        self.angle_hist = []
+        self.action_hist = []
+        self.dof_hist = []
+        self.imu_hist = []
+        self.foot_contact_hist = []
+
 
     ##############################
     # subscriber callbacks
     ##############################
 
     def joy_stick_cb(self, msg):
-        self.get_logger().info(
-            "Wireless controller -- lx: %f; ly: %f; rx: %f; ry: %f; key value: %d"
-            % (msg.lx, msg.ly, msg.rx, msg.ry, msg.keys)
-        )
+        if msg.keys == 2:  # L1: emergency stop
+            self.get_logger().info("Emergency stop")
+            self.set_gains(0.0,0.6)
+
+            ## plots
+            time_hist = np.array(self.time_hist)
+            obs_time_hist = np.array(self.obs_time_hist)
+            print("Plotting angles")
+            angle_hist = np.array(self.angle_hist)
+            dof_hist = np.array(self.dof_hist)
+            for i in range(4):
+                fig,axs = plt.subplots(3,1,sharex=True)
+                for j in range(3):
+                    axs[j].plot(time_hist, angle_hist[:,j+3*i], label=f'cmd{j}')
+                    axs[j].plot(obs_time_hist, dof_hist[:,j+3*i], '--', label=f'real{j}')
+                    axs[j].legend()
+                    axs[j].grid(True, which='both', axis='both')
+                    axs[j].minorticks_on()
+                plt.tight_layout()
+                plt.savefig(f'../fig/angle_{i}.png')
+
+            print("Plotting actions")
+            for i in range(4):
+                fig,axs = plt.subplots(3,1,sharex=True)
+                action_hist = np.array(self.action_hist)
+                axs[0].plot(time_hist, action_hist[:,0+3*i], label='0')
+                axs[0].legend()
+                axs[1].plot(time_hist, action_hist[:,1+3*i], label='1')
+                axs[1].legend()
+                axs[2].plot(time_hist, action_hist[:,2+3*i], label='2')
+                axs[2].legend()
+                plt.tight_layout()
+                plt.savefig(f'../fig/action_{i}.png')
+
+            print("Plotting imu")
+            plt.figure()
+            imu_hist = np.array(self.imu_hist)
+            plt.plot(obs_time_hist, imu_hist[:,0], label='roll')
+            plt.plot(obs_time_hist, imu_hist[:,1], label='pitch')
+            plt.legend()
+            plt.savefig('../fig/imu.png')
+
+            print("Plotting foot contact")
+            plt.figure()
+            foot_contact_hist = np.array(self.foot_contact_hist)
+            for i in range(4):
+                plt.plot(obs_time_hist, foot_contact_hist[:,i], label=f'foot_{i}')
+            plt.legend()
+            plt.savefig('../fig/foot_contact.png')
+
+            print("Saving data")
+            np.savez('../fig/real_data.npz', time_hist=time_hist, obs_time_hist=obs_time_hist, angle_hist=angle_hist, \
+                     action_hist=action_hist, dof_hist=dof_hist, imu_hist=imu_hist, foot_contact_hist=foot_contact_hist)
+
+            raise SystemExit
+        if msg.keys == 32:  # L2: start policy
+            if self.stand_up:
+                self.get_logger().info("Start policy")
+                self.start_policy = True
+            else:
+                self.get_logger().info("Wait for standing up first")
+        
+
+        if msg.keys == 1:  # R1 close gripper
+            self.gripper_msg.position = 1000
+
+        if msg.keys == 16: # R2 open gripper
+            self.gripper_msg.position = 2000
+
+        cmd_vx = msg.ly * 0.8 if msg.ly > 0 else msg.ly * 0.3
+        cmd_vy = msg.lx * -0.5  # 0.5
+        cmd_delta_yaw = msg.rx * -0.5  # 1  0.6
+        cmd_pitch = msg.ry * 0.5  # 0.7
+        if not WALK_STRAIGHT:
+            self.command = np.array([cmd_vx, cmd_vy, cmd_delta_yaw, cmd_pitch, 0])
+
 
     def lowlevel_state_cb(self, msg: LowState):
         # imu data
         imu_data = msg.imu_state
-
-        self.get_logger().info(
-            "Euler angle -- roll: %f; pitch: %f; yaw: %f"
-            % (imu_data.rpy[0], imu_data.rpy[1], imu_data.rpy[2])
-        )
-        self.get_logger().info(
-            "Quaternion -- qw: %f; qx: %f; qy: %f; qz: %f"
-            % (
-                imu_data.quaternion[0],
-                imu_data.quaternion[1],
-                imu_data.quaternion[2],
-                imu_data.quaternion[3],
-            )
-        )
-        self.get_logger().info(
-            "Gyroscope -- wx: %f; wy: %f; wz: %f"
-            % (imu_data.gyroscope[0], imu_data.gyroscope[1], imu_data.gyroscope[2])
-        )
-        self.get_logger().info(
-            "Accelerometer -- ax: %f; ay: %f; az: %f"
-            % (
-                imu_data.accelerometer[0],
-                imu_data.accelerometer[1],
-                imu_data.accelerometer[2],
-            )
-        )
+        self.roll, self.pitch, self.yaw = imu_data.rpy
+        self.obs_ang_vel = np.array(imu_data.gyroscope)*self.env.obs_scales.ang_vel
+        self.obs_imu = np.array([self.roll, self.pitch])
 
         # motor data
-        for motor_id in range(LEG_DOF):
-            motor_data = msg.motor_state[motor_id]  # type: ignore
-            self.get_logger().info(
-                "Motor state -- num: %d; q: %f; dq: %f; ddq: %f; tau: %f"
-                % (
-                    motor_id,
-                    motor_data.q,
-                    motor_data.dq,
-                    motor_data.ddq,
-                    motor_data.tau_est,
-                )
-            )
+        self.joint_pos = [msg.motor_state[i].q for i in range(LEG_DOF)]
+        obs_joint_pos = (np.array(self.joint_pos) - self.env.default_dof_pos_np) * self.env.obs_scales.dof_pos
+        self.obs_joint_pos = np.append(obs_joint_pos, -0.02*(self.gripper_cmd+1) * self.env.obs_scales.dof_pos)  # -0.04 close; 0 open
+
+        joint_vel = [msg.motor_state[i].dq for i in range(LEG_DOF)]
+        obs_joint_vel = np.array(joint_vel) * self.env.obs_scales.dof_vel
+        self.obs_joint_vel = np.append(obs_joint_vel, 0.0)
 
         # foot force data
-        foot_force = []
-        foot_force_est = []
-        for foot_id in range(4):
-            foot_force.append(msg.foot_force[foot_id])
-            foot_force_est.append(msg.foot_force_est[foot_id])
+        # policy feet names:['FR_foot', 'FL_foot', 'RR_foot', 'RL_foot']
+        # robot feet names:['FR_foot', 'FL_foot', 'RR_foot', 'RL_foot']
 
-        self.get_logger().info(
-            "Foot force -- foot0: %d; foot1: %d; foot2: %d; foot3: %d"
-            % (foot_force[0], foot_force[1], foot_force[2], foot_force[3])
-        )
-        self.get_logger().info(
-            "Estimated foot force -- foot0: %d; foot1: %d; foot2: %d; foot3: %d"
-            % (
-                foot_force_est[0],
-                foot_force_est[1],
-                foot_force_est[2],
-                foot_force_est[3],
-            )
-        )
+        foot_force = [msg.foot_force[foot_id] for foot_id in range(4)]
+        if len(self.foot_contact_buffer ) < 10:
+            self.foot_contact_buffer.append(foot_force)
+        else:
+            self.foot_contact_buffer.pop(0)
+            self.foot_contact_buffer.append(foot_force)
+        
+        foot_force = np.sum((np.array(self.foot_contact_buffer) > np.array(CONTACT_THRESHOLD)).astype(float), axis=0)
+        self.obs_foot_contact = (foot_force > 5) - 0.5
+        # self.get_logger().info(f"{self.obs_foot_contact=}, {foot_force=}")
+        if self.start_policy:
+            self.imu_hist.append(self.obs_imu)
+            self.foot_contact_hist.append(self.obs_foot_contact)
+            self.dof_hist.append(self.joint_pos)
+            self.obs_time_hist.append(time.monotonic()-self.start_time)
 
-        # battery data
-        battery_current = msg.power_a
-        battery_voltage = msg.power_v
-
-        self.joint_pos = np.array([motor_data.q for motor_data in msg.motor_state])
-        self.joint_vel = np.array([motor_data.dq for motor_data in msg.motor_state])
-        # self.get_logger().info("Battery state -- current: %f; voltage: %f" %(battery_current, battery_voltage))
-
+        
     ##############################
     # motor commands
     ##############################
@@ -200,9 +269,13 @@ class DeployNode(Node):
             self.motor_cmd[i].kp = kp
             self.motor_cmd[i].kd = kd
 
+    def gripper_timer_callback(self):
+        self.gripper_pub.publish(self.gripper_msg)
+
     def motor_timer_callback(self):
-        self.cmd_msg.crc = get_crc(self.cmd_msg)
-        self.motor_pub.publish(self.cmd_msg)
+        if self.stand_up:
+            self.cmd_msg.crc = get_crc(self.cmd_msg)
+            self.motor_pub.publish(self.cmd_msg)
 
     def set_motor_position(
         self,
@@ -212,40 +285,149 @@ class DeployNode(Node):
             self.motor_cmd[i].q = float(q[i])
         self.cmd_msg.motor_cmd = self.motor_cmd.copy()
 
-    def emergency_stop(self):
-        self.motor_cmd = [
-            MotorCmd(q=POS_STOP_F, dq=VEL_STOP_F, tau=0.0, kp=0.0, kd=0.0, mode=0x01)
-            for _ in range(SDK_DOF)
-        ]
-        self.cmd_msg.motor_cmd = self.motor_cmd.copy()
-        self.motor_timer_callback()
-
     ##############################
     # policy inference
     ##############################
-
-    def policy_timer_callback(self):
-        target_kp = 40
-        target_kd = 0.6
-        stand_up_time = 3.0
+    def test_response_time(self):
+        stand_up_time = 2.0
         if time.monotonic() - self.start_time < stand_up_time:
-            time_ratio = (time.monotonic() - self.start_time) / stand_up_time
-            self.set_gains(kp=time_ratio * target_kp, kd=time_ratio * target_kd)
-            self.set_motor_position(
-                q=self.env.default_dof_pos[0].cpu().detach().numpy()
-            )
-        elif time.monotonic() - self.start_time < 2 * stand_up_time:
-            pass
-        else:
-            actions = self.policy(
-                self.obs.detach(), hist_encoding=True, scandots_latent=None
-            )
-            angles = self.env.compute_angle(actions)
-            self.get_logger().info(f"angles: {angles}")
-            # self.set_motor_position(angles.cpu().detach().numpy()[0])
+            self.set_gains(kp=float(self.env.p_gains[0]), kd=float(self.env.d_gains[0]))
+            self.set_motor_position(q=self.env.default_dof_pos[0].cpu().detach().numpy())
+        elif self.start_policy:
+            self.set_motor_position(self.rec_cmd[self.replay_i])
+            self.cmd_msg.crc = get_crc(self.cmd_msg)
+            self.motor_pub.publish(self.cmd_msg)
 
-        # apply actions
-        # obs = get_observations()
+            self.time_hist.append(time.monotonic()-self.start_time)
+            self.angle_hist.append(self.rec_cmd[self.replay_i])
+            self.replay_i = (self.replay_i + 1) % len(self.rec_cmd)
+
+    @torch.no_grad()
+    def policy_timer_callback(self):
+        # keep stand up pose first
+        if self.stand_up and not self.start_policy:
+            # self.set_motor_position(q=self.env.default_dof_pos[0].cpu().detach().numpy())
+            # self.set_gains(kp=float(self.env.p_gains[0]), kd=float(self.env.d_gains[0]))
+
+            stand_kp = 40
+            stand_kd = 0.6
+            stand_up_time = 2.0
+
+            if time.monotonic() - self.start_time < stand_up_time:
+                time_ratio = (time.monotonic() - self.start_time) / stand_up_time
+                self.set_gains(kp=time_ratio * stand_kp, kd=time_ratio * stand_kd)
+                self.set_motor_position(
+                    q=self.env.default_dof_pos[0].cpu().detach().numpy()
+                )
+            elif time.monotonic() - self.start_time < stand_up_time * 2:
+                pass
+            elif time.monotonic() - self.start_time < stand_up_time * 3:
+                time_ratio = (
+                    time.monotonic() - self.start_time - stand_up_time * 2
+                ) / stand_up_time
+                kp = (1 - time_ratio) * stand_kp + time_ratio * float(self.env.p_gains[0])
+                kd = (1 - time_ratio) * stand_kd + time_ratio * float(self.env.d_gains[0])
+                self.set_gains(kp=kp, kd=kd)
+            
+        elif self.start_policy:
+            # self.set_motor_position(self.angles.cpu().detach().numpy()[0])
+            self.get_logger().info(f"policy timer cb")
+            # policy inference
+            start_time = time.monotonic()
+            self.delta_yaw = np.array([self.command[2]])
+            self.delta_pitch = np.array([self.command[3] - self.pitch]) #np.array([0])
+            self.obs_proprio = np.concatenate((self.obs_ang_vel, self.obs_imu, self.delta_pitch, self.command, \
+                                              self.obs_joint_pos, self.obs_joint_vel, self.prev_action, 0*self.obs_foot_contact))
+            
+            self.obs = self.env.compute_observations(self.obs_proprio)
+            # self.get_logger().info(f"obs_proprio: {self.obs_proprio}")
+
+            if self.init_buffer < 10:
+                self.init_buffer += 1
+            else:
+                if USE_JIT:
+                    actions = self.policy(self.obs.detach())
+                else:
+                    actions = self.policy(
+                        self.obs.detach(), hist_encoding=True, scandots_latent=None
+                    )
+                self.prev_action = actions.clone().detach().cpu().numpy().squeeze(0)
+                self.angles = self.env.compute_angle(actions)
+                self.time_hist.append(time.monotonic()-self.start_time)
+                self.angle_hist.append(self.angles[0].tolist())
+                self.action_hist.append(actions[0].tolist())
+                self.get_logger().info(f"inference time: {time.monotonic()-start_time}")
+                self.get_logger().info(f"angles: {self.angles[0]}")
+
+                self.set_motor_position(self.angles.cpu().detach().numpy()[0])
+
+    @torch.no_grad()
+    def main_loop(self):
+        # keep stand up pose first
+        while self.stand_up and not self.start_policy:
+            # self.set_motor_position(q=self.env.default_dof_pos[0].cpu().detach().numpy())
+            # self.set_gains(kp=float(self.env.p_gains[0]), kd=float(self.env.d_gains[0]))
+
+            stand_kp = 40
+            stand_kd = 0.6
+            stand_up_time = 2.0
+
+            if time.monotonic() - self.start_time < stand_up_time:
+                time_ratio = (time.monotonic() - self.start_time) / stand_up_time
+                self.set_gains(kp=time_ratio * stand_kp, kd=time_ratio * stand_kd)
+                self.set_motor_position(
+                    q=self.env.default_dof_pos[0].cpu().detach().numpy()
+                )
+            elif time.monotonic() - self.start_time < stand_up_time * 2:
+                pass
+            elif time.monotonic() - self.start_time < stand_up_time * 3:
+                time_ratio = (
+                    time.monotonic() - self.start_time - stand_up_time * 2
+                ) / stand_up_time
+                kp = (1 - time_ratio) * stand_kp + time_ratio * float(self.env.p_gains[0])
+                kd = (1 - time_ratio) * stand_kd + time_ratio * float(self.env.d_gains[0])
+                self.set_gains(kp=kp, kd=kd)
+            self.cmd_msg.crc = get_crc(self.cmd_msg)
+            self.motor_pub.publish(self.cmd_msg)
+            rclpy.spin_once(self)
+
+                
+        while rclpy.ok():
+            start_time = time.monotonic()
+            if self.start_policy:
+                # policy inference
+                self.delta_yaw = np.array([self.command[2]])
+                self.delta_pitch = np.array([self.command[3] - self.pitch]) #np.array([0])
+                self.obs_proprio = np.concatenate((self.obs_ang_vel, self.obs_imu, self.delta_pitch, self.command, \
+                                                self.obs_joint_pos, self.obs_joint_vel, self.prev_action, 0*self.obs_foot_contact))
+                
+                self.obs = self.env.compute_observations(self.obs_proprio)
+
+                if self.init_buffer < 10:
+                    self.init_buffer += 1
+                else:
+                    if USE_JIT:
+                        actions = self.policy(self.obs.detach())
+                    else:
+                        actions = self.policy(
+                            self.obs.detach(), hist_encoding=True, scandots_latent=None
+                        )
+                    self.prev_action = actions.clone().detach().cpu().numpy().squeeze(0)
+                    self.angles = self.env.compute_angle(actions)
+                    self.time_hist.append(time.monotonic()-self.start_time)
+                    self.angle_hist.append(self.angles[0].tolist())
+                    self.action_hist.append(actions[0].tolist())
+                    self.get_logger().info(f"inference time: {time.monotonic()-start_time}")
+                    time.sleep(max(0.01-time.monotonic()+start_time,0))
+                    self.set_motor_position(self.angles.cpu().detach().numpy()[0])
+                    self.cmd_msg.crc = get_crc(self.cmd_msg)
+                    self.motor_pub.publish(self.cmd_msg)
+
+
+            rclpy.spin_once(self)
+            self.get_logger().info(f"loop time: {time.monotonic()-start_time}")
+            time.sleep(max(0.02-time.monotonic()+start_time,0))
+
 
     def init_policy(self, args):
         self.get_logger().info("Preparing policy")
@@ -253,26 +435,38 @@ class DeployNode(Node):
         log_pth = os.path.dirname(os.path.realpath(__file__))
         env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
         env_cfg.env.num_envs = 1
+        rec_data = np.load("../fig/rec_data.npz")
+        self.rec_cmd = rec_data["angle_hist"]
+        self.replay_i = 0
 
         # prepare environment
         self.env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
-        # obs = get_observations()
-        self.obs = torch.zeros(1, env_cfg.env.num_observations, device="cuda")
 
         # load policy
-        train_cfg.runner.resume = True
-        ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(
-            log_root=log_pth,
-            env=self.env,
-            name=args.task,
-            args=args,
-            train_cfg=train_cfg,
-            model_name_include="lowlevel_pos.pt",
-            return_log_dir=True,
-        )
-        self.policy = ppo_runner.get_inference_policy(device=self.env.device)
-        actions = torch.zeros(1, 13, device=self.env.device, requires_grad=False)
-        actions = self.policy(self.obs.detach(), hist_encoding=True, scandots_latent=None)
+        if USE_JIT:
+            self.obs = torch.zeros(1, self.env.obs_buf_dim, device=self.env.device)
+            self.policy = torch.jit.load(os.path.join(log_pth, "101-95-15000-base_jit.pt"), map_location=self.env.device)#000-94-8000 100-92-19500- 100-91-7000 100-03 
+            # self.policy = torch.jit.load(os.path.join(log_pth, "100-89-6500-base_jit.pt"), map_location=self.env.device)#03 best
+            self.policy.to(self.env.device)
+            actions = self.policy(self.obs.detach())
+        else:
+            self.obs = torch.zeros(1, env_cfg.env.num_observations, device="cuda")
+            train_cfg.runner.resume = True
+            ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(
+                log_root=log_pth,
+                env=self.env,
+                name=args.task,
+                args=args,
+                train_cfg=train_cfg,
+                model_name_include="lowlevel_pos.pt",
+                return_log_dir=True,
+            )
+            self.policy = ppo_runner.get_inference_policy(device=self.env.device)
+
+            actions = torch.zeros(1, 13, device=self.env.device, requires_grad=False)
+            actions = self.policy(
+                self.obs.detach(), hist_encoding=True, scandots_latent=None
+            )
 
         # init p_gains, d_gains, torque_limits, default_dof_pos_all
         for i in range(LEG_DOF):
@@ -280,110 +474,44 @@ class DeployNode(Node):
             self.motor_cmd[i].dq = 0.0
             self.motor_cmd[i].tau = 0.0
             self.motor_cmd[i].kp = 0.0  # self.env.p_gains[i]  # 30
-            self.motor_cmd[i].kd = 0.0  # self.env.d_gains[i]  # 0.6
+            self.motor_cmd[i].kd = 0.0  # float(self.env.d_gains[i])  # 0.6
         self.cmd_msg.motor_cmd = self.motor_cmd.copy()
 
-        self.get_logger().info("starting to play policy")
-        input("Press Enter to start...")
         # init angles:([-0.1000,  0.8000, -1.5000,  0.1000,  0.8000, -1.5000, -0.1000,  1.0000,
         # -1.5000,  0.1000,  1.0000, -1.5000], device='cuda:0')
+        self.angles = self.env.default_dof_pos[0].clone().unsqueeze(0)
+
 
 if __name__ == "__main__":
+    # subprocess.run(["./stand_up_go2 eth0"], shell=True)
+
     rclpy.init(args=None)
     args = get_args()
     dp_node = DeployNode(args)
     dp_node.get_logger().info("Deploy node started")
     rclpy.spin(dp_node)
+    # dp_node.main_loop()
     rclpy.shutdown()
 
-    # # prepare plot data
-    # time_hist = []
-    # cmd_hist = []
-    # state_hist = []
-    # ref_hist = []
-    # finger_force_hist = []
 
-    # # plot results
 
-    # # store data for plot
-    # cur_time = env.episode_length_buf[env.lookat_id].item() / 50
-    # time_hist.append(cur_time)
-    # cmd_hist.append((env.target_position[env.lookat_id, :]).tolist())
-    # cur_state = env.ee_pos[env.lookat_id, :].tolist()
-    # cur_state.append(env.yaw[env.lookat_id].tolist())
-    # cur_state.append(env.pitch[env.lookat_id].tolist())
-    # state_hist.append(cur_state)
-    # ref = [env.target_yaw[env.lookat_id].tolist(),env.target_pitch[env.lookat_id].tolist()]
-    # ref_hist.append(ref)
 
-    # real_delta_yaw = env.target_yaw[env.lookat_id].tolist() - env.yaw[env.lookat_id].tolist()
-    # real_delta_pitch = env.target_pitch[env.lookat_id].tolist() - env.pitch[env.lookat_id].tolist()
-    # finger_force = torch.norm(env.contact_forces[env.lookat_id, env.finger_indices, :],dim=1).tolist()
-    # finger_force = env.contact_forces[env.lookat_id, env.finger_indices, :].tolist()
-    # # finger_force_hist.append(finger_force)
-    # # print("----------\ntime:", cur_time,
-    # #       "\nbase_target_pos:", env.base_target_pos[env.lookat_id, :].tolist(),
-    # #       "\nreal_delta_pos:", env.target_pos_rel[env.lookat_id, :].tolist(),
-    # #       "\nhighlevel_vel:", env.actions[env.lookat_id, :2].tolist(),
-    # #       "\nreal_target_yaw:", env.target_yaw[env.lookat_id].tolist(),
-    # #       "\nhighlevel_yaw:", env.actions[env.lookat_id, 2].tolist(),
-    # #       "\nreal_target_pitch:", env.target_pitch[env.lookat_id].tolist(),
-    # #       "\nhighlevel_pitch:", env.actions[env.lookat_id, 3].tolist(),
-    # #       "\nhighlevel_gripper open:", env.actions[env.lookat_id, -1]<0,
-    # #       "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
-    # #       "\nfinger_contact_force:",finger_force,
-    # #       "\nfinger_position",[[round(x,2) for x in sublist] for sublist in env.rigid_body_states[env.lookat_id, env.finger_indices, :3].tolist()]
-    # #       )
-    #     #   "\ndof_pos:",env.dof_pos,
-    #     #   "\nbox_position:",[round(x,2) for x in env.box_states[env.lookat_id,:3].tolist()],
+        # stand_kp = 40
+        # stand_kd = 0.6
+        # stand_up_time = 2.0
 
-    # id = env.lookat_id
-    # # if cur_time == 0 or i == 3*int(env.max_episode_length)-1:  #or (cur_time % env_cfg.commands.resampling_time)==0
-    # #     time_hist = np.array(time_hist[:-3])
-    # #     cmd_hist = np.array(cmd_hist[:-3])
-    # #     state_hist = np.array(state_hist[:-3])
-    # #     ref_hist = np.array(ref_hist[:-3])
-    # #     finger_force_hist = np.array(finger_force_hist[:-3])
-    # #     fig,axs = plt.subplots(5,1,sharex=True)
-    # #     axs[0].plot(time_hist,cmd_hist[:,0],linestyle='--',label='target_x')
-    # #     axs[0].plot(time_hist,state_hist[:,0],label='x')
-    # #     axs[0].legend()
-    # #     axs[0].set_ylabel('m')
-    # #     # axs[0].set_ylim((-0.5,1.5))
-
-    # #     axs[1].plot(time_hist,cmd_hist[:,1],linestyle='--',label='target_y')
-    # #     axs[1].plot(time_hist,state_hist[:,1],label='y')
-    # #     axs[1].legend()
-    # #     axs[1].set_ylabel('m')
-    # #     # axs[1].set_ylim((-1,1))
-
-    # #     axs[2].plot(time_hist,cmd_hist[:,2],linestyle='--',label='target_z')
-    # #     axs[2].plot(time_hist,state_hist[:,2],label='z')
-    # #     axs[2].legend()
-    # #     axs[2].set_ylabel('m')
-    # #     # axs[2].set_ylim((-1,1))
-
-    # #     axs[3].plot(time_hist,ref_hist[:,0],linestyle='--',label='ref_yaw')
-    # #     axs[3].plot(time_hist,state_hist[:,3],label='yaw')
-    # #     axs[3].legend()
-    # #     axs[3].set_ylabel('rad')
-    # #     # axs[3].set_ylim((-0.7,0.7))
-
-    # #     axs[4].plot(time_hist,ref_hist[:,1],linestyle='--',label='ref_pitch')
-    # #     axs[4].plot(time_hist,state_hist[:,4],label='pitch')
-    # #     axs[4].legend()
-    # #     axs[4].set_ylabel('rad')
-    # #     # axs[4].set_ylim((-0.7,0.7))
-
-    # #     plt.ylabel('force/N')
-    # #     plt.xlabel('time/s')
-    # #     # fig.suptitle(f"targetx,vy,yaw,pitch,grasp(>0)):{np.round(cmd_hist[0,:], decimals=2)}")
-    # #     plt.tight_layout()
-    # #     plt.savefig(f'../figs/cmd_following_{i}.png')
-    # #     # plt.savefig(f'../figs/force_{i}_{cur_time}.png')
-
-    # #     time_hist = []
-    # #     cmd_hist = []
-    # #     state_hist = []
-    # #     ref_hist = []
-    # #     finger_force_hist = []
+        # if time.monotonic() - self.start_time < stand_up_time:
+        #     time_ratio = (time.monotonic() - self.start_time) / stand_up_time
+        #     self.set_gains(kp=time_ratio * stand_kp, kd=time_ratio * stand_kd)
+        #     self.set_motor_position(
+        #         q=self.env.default_dof_pos[0].cpu().detach().numpy()
+        #     )
+        # elif time.monotonic() - self.start_time < stand_up_time * 2:
+        #     pass
+        # elif time.monotonic() - self.start_time < stand_up_time * 3:
+        #     time_ratio = (
+        #         time.monotonic() - self.start_time - stand_up_time * 2
+        #     ) / stand_up_time
+        #     kp = (1 - time_ratio) * stand_kp + time_ratio * float(self.env.p_gains[0])
+        #     kd = (1 - time_ratio) * stand_kd + time_ratio * float(self.env.d_gains[0])
+        #     self.set_gains(kp=kp, kd=kd)
