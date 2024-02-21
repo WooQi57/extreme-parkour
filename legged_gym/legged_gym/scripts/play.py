@@ -63,6 +63,7 @@ SDK_DOF = 20
 CONTACT_THRESHOLD = [26,29,25,27] #[16,19,15,17]+5
 USE_JIT = True
 WALK_STRAIGHT = False
+USE_TIMER = False
 
 class DeployNode(Node):
     def __init__(self, policy_args):
@@ -91,7 +92,8 @@ class DeployNode(Node):
 
         self.motor_pub = self.create_publisher(LowCmd, "lowcmd", 1)
         self.motor_pub_freq = 50
-        self.motor_timer = self.create_timer(1.0 / self.motor_pub_freq, self.motor_timer_callback)
+        if USE_TIMER:
+            self.motor_timer = self.create_timer(1.0 / self.motor_pub_freq, self.motor_timer_callback)
         self.cmd_msg = LowCmd()
 
         # init motor command
@@ -106,7 +108,8 @@ class DeployNode(Node):
         # init policy
         self.init_policy(policy_args)
         self.policy_freq = 50
-        self.policy_timer = self.create_timer( 1.0 / self.policy_freq, self.policy_timer_callback)
+        if USE_TIMER:
+            self.policy_timer = self.create_timer( 1.0 / self.policy_freq, self.policy_timer_callback)
         self.obs_proprio = np.zeros(self.env.cfg.env.n_proprio)
         self.prev_action = np.zeros(self.env.cfg.env.num_actions)
         self.command = np.zeros(self.env.cfg.commands.num_commands)
@@ -357,7 +360,7 @@ class DeployNode(Node):
                 self.angle_hist.append(self.angles[0].tolist())
                 self.action_hist.append(actions[0].tolist())
                 self.get_logger().info(f"inference time: {time.monotonic()-start_time}")
-                self.get_logger().info(f"angles: {self.angles[0]}")
+                # self.get_logger().info(f"angles: {self.angles[0]}")
 
                 self.set_motor_position(self.angles.cpu().detach().numpy()[0])
 
@@ -445,7 +448,7 @@ class DeployNode(Node):
         # load policy
         if USE_JIT:
             self.obs = torch.zeros(1, self.env.obs_buf_dim, device=self.env.device)
-            self.policy = torch.jit.load(os.path.join(log_pth, "101-95-15000-base_jit.pt"), map_location=self.env.device)#000-94-8000 100-92-19500- 100-91-7000 100-03 
+            self.policy = torch.jit.load(os.path.join(log_pth, "000-96-15000-base_jit.pt"), map_location=self.env.device)#101-95 000-94-8000 100-92-19500- 100-91-7000 100-03 
             # self.policy = torch.jit.load(os.path.join(log_pth, "100-89-6500-base_jit.pt"), map_location=self.env.device)#03 best
             self.policy.to(self.env.device)
             actions = self.policy(self.obs.detach())
@@ -489,8 +492,10 @@ if __name__ == "__main__":
     args = get_args()
     dp_node = DeployNode(args)
     dp_node.get_logger().info("Deploy node started")
-    rclpy.spin(dp_node)
-    # dp_node.main_loop()
+    if USE_TIMER:
+        rclpy.spin(dp_node)
+    else:
+        dp_node.main_loop()
     rclpy.shutdown()
 
 
