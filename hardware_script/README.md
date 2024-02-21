@@ -1,14 +1,14 @@
 # Hardware deployment #
 
 ### Installation ###
-- install unitree_sdk: 
-    https://github.com/unitreerobotics/unitree_sdk2
+- install unitree_sdk:  
+    https://github.com/unitreerobotics/unitree_sdk2  
     
-- install unitree_ros2: 
-    https://support.unitree.com/home/en/developer/ROS2_service
+- install unitree_ros2:  
+    https://support.unitree.com/home/en/developer/ROS2_service  
 
-- install robotis sdk for the gripper(set USE_GRIPPPER=True in play_hardware.py): 
-    https://www.youtube.com/watch?v=E8XPqDjof4U 
+- install robotis sdk for the gripper(set USE_GRIPPPER=True in play_hardware.py):  
+    https://www.youtube.com/watch?v=E8XPqDjof4U  
 
 ```bash
 conda create -n doggy python=3.8
@@ -17,9 +17,9 @@ conda activate doggy
 
 - install nvidia-jetpack
 
-- install torch==1.11.0 torchvision==0.12.0: 
-    https://forums.developer.nvidia.com/t/pytorch-for-jetson/72048 
-    https://docs.nvidia.com/deeplearning/frameworks/install-pytorch-jetson-platform/index.html
+- install torch==1.11.0 torchvision==0.12.0:  
+    https://forums.developer.nvidia.com/t/pytorch-for-jetson/72048   
+    https://docs.nvidia.com/deeplearning/frameworks/install-pytorch-jetson-platform/index.html  
 
 ```bash
 conda activate doggy
