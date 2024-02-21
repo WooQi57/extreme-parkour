@@ -70,7 +70,7 @@ def play(args):
         env_cfg.domain_rand.action_delay_view = 1
     env_cfg.env.num_envs = 1 if not args.save else 64  # 2
     env_cfg.env.episode_length_s = 8 # 60 30  8
-    env_cfg.commands.resampling_time = 8 # 60 10  2
+    env_cfg.commands.resampling_time = 2 # 60 10  2
     env_cfg.terrain.num_rows = 2
     env_cfg.terrain.num_cols = 1
     env_cfg.terrain.height = [0.02, 0.02]
@@ -114,12 +114,16 @@ def play(args):
     obs = env.get_observations()
 
     # prepare plot data
+    obs_time_hist = []
     time_hist = []
     cmd_hist = []
     state_hist = []
     ref_hist = []
     finger_force_hist = []
     action_hist = []
+    angle_hist = []
+    dof_hist = []
+
     if args.web:
         web_viewer.setup(env)
 
@@ -181,94 +185,34 @@ def play(args):
                         render_all_camera_sensors=True,
                         wait_for_page_load=True)
             web_viewer.write_vid()
+
         # store data for plot
         cur_time = env.episode_length_buf[env.lookat_id].item() / 50
         time_hist.append(cur_time)
-        # action_hist.append(env.target_angles[env.lookat_id].tolist())
-        action_hist.append(actions[env.lookat_id].tolist())
+        angle_hist.append(env.target_angles[env.lookat_id].tolist())
+        dof_hist.append(env.dof_pos[env.lookat_id].tolist())
+        # action_hist.append(actions[env.lookat_id].tolist())
 
-        # cmd_hist.append((env.target_position[env.lookat_id, :]).tolist())
-        # cur_state = env.ee_pos[env.lookat_id, :].tolist()
-        # cur_state.append(env.yaw[env.lookat_id].tolist())
-        # cur_state.append(env.pitch[env.lookat_id].tolist())
-        # state_hist.append(cur_state)
-        # ref = [env.target_yaw[env.lookat_id].tolist(),env.target_pitch[env.lookat_id].tolist()]
-        # ref_hist.append(ref)
-
-
-        # real_delta_yaw = env.target_yaw[env.lookat_id].tolist() - env.yaw[env.lookat_id].tolist()
-        # real_delta_pitch = env.target_pitch[env.lookat_id].tolist() - env.pitch[env.lookat_id].tolist()
-        # finger_force = torch.norm(env.contact_forces[env.lookat_id, env.finger_indices, :],dim=1).tolist()
-        # finger_force = env.contact_forces[env.lookat_id, env.finger_indices, :].tolist()
-        # finger_force_hist.append(finger_force)
-        # print("----------\ntime:", cur_time, 
-        #       "\nbase_target_pos:", env.base_target_pos[env.lookat_id, :].tolist(),
-        #       "\nreal_delta_pos:", env.target_pos_rel[env.lookat_id, :].tolist(),
-        #       "\nhighlevel_vel:", env.actions[env.lookat_id, :2].tolist(),
-        #       "\nreal_target_yaw:", env.target_yaw[env.lookat_id].tolist(), 
-        #       "\nhighlevel_yaw:", env.actions[env.lookat_id, 2].tolist(),
-        #       "\nreal_target_pitch:", env.target_pitch[env.lookat_id].tolist(),
-        #       "\nhighlevel_pitch:", env.actions[env.lookat_id, 3].tolist(),
-        #       "\nhighlevel_gripper open:", env.actions[env.lookat_id, -1]<0,
-        #       "\nee_pos:", env.ee_pos[env.lookat_id, :].tolist(),
-        #       "\nfinger_contact_force:",finger_force,
-        #       "\nfinger_position",[[round(x,2) for x in sublist] for sublist in env.rigid_body_states[env.lookat_id, env.finger_indices, :3].tolist()]
-        #       )
-            #   "\ndof_pos:",env.dof_pos,
-            #   "\nbox_position:",[round(x,2) for x in env.box_states[env.lookat_id,:3].tolist()],
-        
         # id = env.lookat_id
         if cur_time == 0 or i == 2*int(env.max_episode_length)-1:  #or (cur_time % env_cfg.commands.resampling_time)==0 
             time_hist = np.array(time_hist[:-3])
-            action_hist = np.array(action_hist[:-3])
-            # cmd_hist = np.array(cmd_hist[:-3])
-            # state_hist = np.array(state_hist[:-3])
-            # ref_hist = np.array(ref_hist[:-3])
-            # finger_force_hist = np.array(finger_force_hist[:-3])
-            fig,axs = plt.subplots(3,1,sharex=True)
-            # axs[0].plot(time_hist,cmd_hist[:,0],linestyle='--',label='target_x')
-            axs[0].plot(time_hist,action_hist[:,3],label='0')
-            axs[0].legend()
-            # axs[0].set_ylabel('m')
-            # axs[0].set_ylim((-0.5,1.5))
-
-            # axs[1].plot(time_hist,cmd_hist[:,1],linestyle='--',label='target_y')
-            axs[1].plot(time_hist,action_hist[:,4],label='1')    
-            axs[1].legend()
-            # axs[1].set_ylabel('m')
-            # axs[1].set_ylim((-1,1))
-
-            # axs[2].plot(time_hist,cmd_hist[:,2],linestyle='--',label='target_z')
-            axs[2].plot(time_hist,action_hist[:,5],label='2') 
-            axs[2].legend()
-            # axs[2].set_ylabel('m')  
-            # axs[2].set_ylim((-1,1))
-
-            # axs[3].plot(time_hist,ref_hist[:,0],linestyle='--',label='ref_yaw')
-            # axs[3].plot(time_hist,state_hist[:,3],label='yaw')
-            # axs[3].legend()
-            # axs[3].set_ylabel('rad')
-            # # axs[3].set_ylim((-0.7,0.7))
-
-            # axs[4].plot(time_hist,ref_hist[:,1],linestyle='--',label='ref_pitch')
-            # axs[4].plot(time_hist,state_hist[:,4],label='pitch')
-            # axs[4].legend()
-            # axs[4].set_ylabel('rad')
-            # # axs[4].set_ylim((-0.7,0.7))
-
-            plt.ylabel('actions')
-            plt.xlabel('time/s')
-            # fig.suptitle(f"targetx,vy,yaw,pitch,grasp(>0)):{np.round(cmd_hist[0,:], decimals=2)}")
-            plt.tight_layout() 
-            plt.savefig(f'../figs/cmd_following_{i}.png')
-            # plt.savefig(f'../figs/force_{i}_{cur_time}.png')
+            angle_hist = np.array(angle_hist[:-3])
+            dof_hist = np.array(dof_hist[:-3])
+            # action_hist = np.array(action_hist[:-3])
+            for f in range(4):
+                fig,axs = plt.subplots(3,1,sharex=True)
+                for j in range(3):
+                    axs[j].plot(time_hist, angle_hist[:,j+3*f], label=f'cmd{j}')
+                    axs[j].plot(time_hist[:-1], dof_hist[1:,j+3*f], '--', label=f'real{j}')  # dof observe is actually one step earlier
+                    axs[j].legend()
+                    axs[j].grid(True, which='both', axis='both')
+                    axs[j].minorticks_on()
+                plt.tight_layout()
+                plt.savefig(f'../figs/cmd_following_{i}_{f}.png')
 
             time_hist = []
-            cmd_hist = []
-            state_hist = []
-            ref_hist = []
-            finger_force_hist = []
-            action_hist = []
+            angle_hist = []
+            dof_hist = []
 
 if __name__ == '__main__':
     EXPORT_POLICY = False

@@ -92,12 +92,12 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
         noise_level = 1.0 # scales other values 1.0
         quantize_height = True
         class noise_scales:
-            rotation = 0.0
-            dof_pos = 0.01
-            dof_vel = 0.05
-            lin_vel = 0.05
-            ang_vel = 0.05
-            gravity = 0.02
+            rotation = 0.1
+            dof_pos = 0.005
+            dof_vel = 0.075
+            # lin_vel = 0.05
+            ang_vel = 0.15
+            # gravity = 0.02
             height_measurements = 0.02
             
     class control( LeggedRobotCfg.control ):
@@ -123,9 +123,15 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
 
     class domain_rand( LeggedRobotCfg.domain_rand):
-        delay_update_global_steps = 24 * 8000
+        friction_range = [0.6, 6.]  # 0.6 2
+        push_robots = True
+        push_interval_s = 8
+        max_push_vel_xy = 0.5
+        max_push_vel_z = 0.1
+
+        delay_update_global_steps = 24 * 3000  #8000
         action_delay = True
-        action_curr_step = [0, 2, 1]
+        action_curr_step = [1, 0, 2, 1]
         action_curr_step_scratch = [0, 1]
         action_delay_view = 1
         action_buf_len = 8
@@ -137,6 +143,7 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
             tracking_yaw = 1.5  # 0.5
             tracking_pitch = 1.5  # 0.5
             tracking_gripper = 0.5
+            tracking_ee_height = 0.5
             # regularization rewards
             lin_vel_z = -1.0
             ang_vel_xy = -0.05
@@ -211,12 +218,12 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
         
 class Go1GPRoughCfgPPO( LeggedRobotCfgPPO ):
     class algorithm( LeggedRobotCfgPPO.algorithm ):
-        entropy_coef = 0.01
+        entropy_coef = 0.01  # 0
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'go2'
         resume = False
-        max_iterations = 10000 # number of policy updates 50000
+        max_iterations = 20000 # number of policy updates 50000
 
     class estimator( LeggedRobotCfgPPO.estimator):
         priv_states_dim = Go1GPRoughCfg.env.n_priv

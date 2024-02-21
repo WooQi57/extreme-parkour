@@ -124,10 +124,10 @@ class Go1GP(BaseTask):
         actions.to(self.device)
         self.action_history_buf = torch.cat([self.action_history_buf[:, 1:].clone(), actions[:, None, :].clone()], dim=1)
         if self.cfg.domain_rand.action_delay:
-            # if self.global_counter % self.cfg.domain_rand.delay_update_global_steps == 0:
-            #     if len(self.cfg.domain_rand.action_curr_step) != 0:
-            #         self.delay = torch.tensor(self.cfg.domain_rand.action_curr_step.pop(0), device=self.device, dtype=torch.float)
-            self.delay = torch.tensor(np.random.choice(self.cfg.domain_rand.action_curr_step), device=self.device, dtype=torch.float)
+            if self.global_counter % self.cfg.domain_rand.delay_update_global_steps == 0:
+                if len(self.cfg.domain_rand.action_curr_step) != 0:
+                    self.delay = torch.tensor(self.cfg.domain_rand.action_curr_step.pop(0), device=self.device, dtype=torch.float)
+            # self.delay = torch.tensor(np.random.choice(self.cfg.domain_rand.action_curr_step), device=self.device, dtype=torch.float)
             if self.viewer:
                 self.delay = torch.tensor(self.cfg.domain_rand.action_delay_view, device=self.device, dtype=torch.float)
             indices = -self.delay -1
@@ -410,12 +410,12 @@ class Go1GP(BaseTask):
         self.delta_pitch = self.commands[:, 3] - self.pitch
 
         # add noise to observation
-        base_ang_vel = self.get_noisy_measurement(self.base_ang_vel, 0*self.cfg.noise.noise_scales.ang_vel)
-        imu_obs = self.get_noisy_measurement(imu_obs, 0*self.cfg.noise.noise_scales.rotation)
+        base_ang_vel = self.get_noisy_measurement(self.base_ang_vel, self.cfg.noise.noise_scales.ang_vel)
+        imu_obs = self.get_noisy_measurement(imu_obs, self.cfg.noise.noise_scales.rotation)
         # delta_yaw = self.get_noisy_measurement(self.delta_yaw, 0*self.cfg.noise.noise_scales.rotation)
-        delta_pitch = self.get_noisy_measurement(self.delta_pitch, 0*self.cfg.noise.noise_scales.rotation)
-        dof_pos = self.get_noisy_measurement(self.dof_pos, 0*self.cfg.noise.noise_scales.dof_pos)
-        dof_vel = self.get_noisy_measurement(self.dof_vel, 0*self.cfg.noise.noise_scales.dof_vel)
+        delta_pitch = self.get_noisy_measurement(self.delta_pitch, self.cfg.noise.noise_scales.rotation)
+        dof_pos = self.get_noisy_measurement(self.dof_pos, self.cfg.noise.noise_scales.dof_pos)
+        dof_vel = self.get_noisy_measurement(self.dof_vel, self.cfg.noise.noise_scales.dof_vel)
 
         obs_buf = torch.cat((#skill_vector, 
                             base_ang_vel  * self.obs_scales.ang_vel,   #[1,3]
@@ -425,7 +425,7 @@ class Go1GP(BaseTask):
                             self.reindex((dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),  #[1,13] contain no passive dof
                             self.reindex(dof_vel * self.obs_scales.dof_vel),   #[1,13]
                             self.reindex(self.action_history_buf[:, -1]),   #[1,13]
-                            self.reindex_feet(self.contact_filt.float()-0.5),   #[1,4]
+                            0*self.reindex_feet(self.contact_filt.float()-0.5),   #[1,4]
                             ),dim=-1)
                             # delta_yaw[:, None],    #[1,1]
         priv_explicit = torch.cat((self.base_lin_vel * self.obs_scales.lin_vel,
@@ -707,7 +707,9 @@ class Go1GP(BaseTask):
         """ Random pushes the robots. Emulates an impulse by setting a randomized base velocity. 
         """
         max_vel = self.cfg.domain_rand.max_push_vel_xy
+        max_vel_z = self.cfg.domain_rand.max_push_vel_z
         self.root_states[:, 7:9] = torch_rand_float(-max_vel, max_vel, (self.num_envs, 2), device=self.device) # lin vel x/y
+        self.root_states[:, 9] = torch_rand_float(-max_vel_z, max_vel_z, (self.num_envs,1), device=self.device).squeeze(1) # lin vel z
         self.gym.set_actor_root_state_tensor(self.sim, gymtorch.unwrap_tensor(self.all_root_states))
 
     def _update_terrain_curriculum(self, env_ids):
@@ -1335,6 +1337,11 @@ class Go1GP(BaseTask):
         rew = close_right.float()
         return rew   
        
+    def _reward_tracking_ee_height(self):
+        ee_height = self.ee_pos[:,2]
+        rew = torch.exp(-torch.abs(ee_height))*(self.commands[:, 3]>0)
+        return rew
+    
     def _reward_lin_vel_z(self):
         rew = torch.square(self.base_lin_vel[:, 2])
         rew[self.env_class != 17] *= 0.5
