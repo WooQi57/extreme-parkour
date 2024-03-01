@@ -27,6 +27,10 @@ pip install "numpy<1.24" pydelatin wandb tqdm opencv-python ipdb pyfqmr flask
 ```
 
 ### Usage ###
+1. (optional) turn on the gripper
+```bash
+ros2 run dynamixel_sdk_examples read_write_node
+```
 
 1. turn off sport mode: (needed only once after turning on the robot)
 ```bash
