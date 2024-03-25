@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-#SBATCH --job-name="100-96-012delaynocontacthvz"
+#SBATCH --job-name="000-97-box"
 #SBATCH --partition=iris-hi
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/100-96-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/000-97-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
 #SBATCH --time=24:00:00 # Max job length is 1 day
@@ -28,10 +28,10 @@ nvidia-smi
 # sample process
 # srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python /iris/u/wuqi23/doggybot/test.py'
 echo "task description:
-    add low head award
+run highlevel with old settings and new lowlevel
 
+lowlevel:
     add z vel push
-
     increase friction upper bound
     remove foot contact
     original random delay [1,0,2,1] for every 3k steps
@@ -55,7 +55,7 @@ echo "task description:
 #         err[:,2]*=5
 # --------------------------------------------"
 
-srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go1gp --exptid 100-96-012delaynocontacthvz --device cuda:0'
+srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go1gb --exptid 000-97-box --device cuda:0'
 
 # done
 echo "Done"

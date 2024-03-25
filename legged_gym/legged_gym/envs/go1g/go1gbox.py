@@ -138,7 +138,8 @@ class Go1GB(BaseTask):
         
 
         # lowlevel actions
-        lowlevel_actions = self.policy(self.lowlevel_obs_buf.detach(), hist_encoding=True, scandots_latent=None)
+        lowlevel_actions = self.policy_jit(self.lowlevel_obs_buf.detach())
+        # lowlevel_actions = self.policy(self.lowlevel_obs_buf.detach(), hist_encoding=True, scandots_latent=None)
         lowlevel_actions = self.reindex(lowlevel_actions)
         lowlevel_actions.to(self.device)
         self.lowlevel_action_history_buf = torch.cat([self.lowlevel_action_history_buf[:, 1:].clone(), lowlevel_actions[:, None, :].clone()], dim=1)
@@ -457,10 +458,10 @@ class Go1GB(BaseTask):
         #     self.delta_pitch = self.target_pitch - self.pitch
         #     self.delta_position = self.base_target_pos
 
-        if self.global_counter % 5 == 0:
-            self.delta_yaw = self.actions[:, 2] - self.yaw
-            self.delta_pitch = self.actions[:, 3] - self.pitch
-            self.highlevel_cmd = self.actions
+        # if self.global_counter % 5 == 0:
+        self.delta_yaw = self.actions[:, 2] - self.yaw
+        self.delta_pitch = self.actions[:, 3] - self.pitch
+        self.highlevel_cmd = self.actions
 
         # real_delta_yaw = self.target_yaw - self.yaw
         # real_delta_pitch = self.target_pitch - self.pitch
@@ -471,15 +472,12 @@ class Go1GB(BaseTask):
         lowlevel_obs_buf = torch.cat((#skill_vector, 
                             self.base_ang_vel  * self.obs_scales.ang_vel,   #3
                             imu_obs,    #2
-                            self.delta_yaw[:, None],    #1
                             self.delta_pitch[:, None],   #1
                             self.highlevel_cmd,  #5
-                            (self.env_class != 17).float()[:, None], #1
-                            (self.env_class == 17).float()[:, None], #1
                             self.reindex((self.dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),  #13 contain no passive dof
                             self.reindex(self.dof_vel * self.obs_scales.dof_vel),   #13
                             self.reindex(self.lowlevel_action_history_buf[:, -1]),   #13
-                            self.reindex_feet(self.contact_filt.float()-0.5),   #4
+                            0*self.reindex_feet(self.contact_filt.float()-0.5),   #4
                             ),dim=-1)
         priv_explicit = torch.cat((self.base_lin_vel * self.obs_scales.lin_vel,
                                    0 * self.base_lin_vel,
@@ -492,7 +490,7 @@ class Go1GB(BaseTask):
         ), dim=-1)
         if self.cfg.terrain.measure_heights:
             heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.3 - self.measured_heights, -1, 1.)
-            self.lowlevel_obs_buf = torch.cat([lowlevel_obs_buf, heights, priv_explicit, priv_latent, self.lowlevel_obs_history_buf.view(self.num_envs, -1)], dim=-1)
+            self.lowlevel_obs_buf = torch.cat([lowlevel_obs_buf, heights*0, priv_explicit, priv_latent, 0*self.lowlevel_obs_history_buf.view(self.num_envs, -1)], dim=-1)
         else:
             self.lowlevel_obs_buf = torch.cat([lowlevel_obs_buf, priv_explicit, priv_latent, self.lowlevel_obs_history_buf.view(self.num_envs, -1)], dim=-1)
         # lowlevel_obs_buf[:, 6:8] = 0  # mask yaw in proprioceptive history
@@ -829,21 +827,25 @@ class Go1GB(BaseTask):
     #----------------------------------------
     def _load_lowlevel(self):
         args = get_args()
-        args.task="go1g"
         log_pth = LEGGED_GYM_ROOT_DIR + "/legged_gym/scripts/"
+        path = log_pth + "lowlevel_pos_jit.pt"
+        self.policy_jit = torch.jit.load(path, map_location=self.device)
+
+        args.task="go1gp"
         env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
-        env_cfg.env.num_envs = self.num_envs
-        env_cfg.env.create_sim = False
+        # env_cfg.env.num_envs = self.num_envs
+        # env_cfg.env.create_sim = False
         self.lowlevel_obs_buf = torch.zeros(self.num_envs, env_cfg.env.num_observations, device=self.device, dtype=torch.float)
         self.num_lowlevel_actions = env_cfg.env.num_actions  # 13
         self.lowlevel_n_proprio = env_cfg.env.n_proprio
-        # prepare environment
-        env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
 
-        # load policy
-        train_cfg.runner.resume = True
-        ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="lowlevel_pos.", return_log_dir=True)
-        self.policy = ppo_runner.get_inference_policy(device=self.device)
+        # # prepare environment
+        # env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
+
+        # # load policy
+        # train_cfg.runner.resume = True
+        # ppo_runner, train_cfg, log_pth = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args, train_cfg=train_cfg, model_name_include="lowlevel_pos.", return_log_dir=True)
+        # self.policy = ppo_runner.get_inference_policy(device=self.device)
 
     def _init_buffers(self):
         """ Initialize torch tensors which will contain simulation states and processed quantities

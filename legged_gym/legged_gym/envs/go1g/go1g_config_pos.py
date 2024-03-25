@@ -143,7 +143,7 @@ class Go1GPRoughCfg( LeggedRobotCfg ):
             tracking_yaw = 1.5  # 0.5
             tracking_pitch = 1.5  # 0.5
             tracking_gripper = 0.5
-            tracking_ee_height = 0.5
+            tracking_ee_height = 0.5*0
             # regularization rewards
             lin_vel_z = -1.0
             ang_vel_xy = -0.05
