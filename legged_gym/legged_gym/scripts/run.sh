@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-#SBATCH --job-name="000-97-box"
+#SBATCH --job-name="100-01-couchcmd"
 #SBATCH --partition=iris-hi
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/000-97-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/100-01-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
 #SBATCH --time=24:00:00 # Max job length is 1 day
@@ -27,35 +27,21 @@ nvidia-smi
 
 # sample process
 # srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python /iris/u/wuqi23/doggybot/test.py'
-echo "task description:
-run highlevel with old settings and new lowlevel
-
-lowlevel:
-    add z vel push
-    increase friction upper bound
+echo "
+--------------------------------------------
+--------------------------------------------
+task description:
+    run parkour and cmd at the same time
+    more cutoff
+    add tracking_z
+    remove delta yaw (switch to omega)
     remove foot contact
-    original random delay [1,0,2,1] for every 3k steps
-    change observation from delta yaw to omega [-0.7,0.7]
-    lin_vel_clip = 0.1
-    lin_vel_x = [-0.5, 1.5]
-    lin vel reward use base vel
-    0*history
-    0*height
-    delay 1
-    rest offset = 0"
-    # resumed from 100-92
-    # add 6 zeros in priv
-    # add 0.02s delay in sim 
-    # detect height part*0 in obs, n_scan =132
-    # no 17 stuff"
-#     duplicate
-#     high between finger 0.5
-#     approach with stress on z:
-#         err = self.target_position - self.ee_pos
-#         err[:,2]*=5
-# --------------------------------------------"
+    original random delay [1,1,0,2,1] for every 3k steps
+--------------------------------------------
+--------------------------------------------
+--------------------------------------------"
 
-srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go1gb --exptid 000-97-box --device cuda:0'
+srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go2 --exptid 100-02-couchcmd --device cuda:0'
 
 # done
 echo "Done"

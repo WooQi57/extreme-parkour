@@ -68,32 +68,15 @@ def play(args):
     # override some parameters for testing
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 1
-    env_cfg.env.num_envs = 1 if not args.save else 64  # 2
-    env_cfg.env.episode_length_s = 8 # 60 30  8
-    env_cfg.commands.resampling_time = 2 # 60 10  2
+    env_cfg.env.num_envs = 2 if not args.save else 64  # 2
+    env_cfg.env.episode_length_s = 30 # 60 30  8
+    env_cfg.commands.resampling_time = 6 # 60 10  2
     env_cfg.terrain.num_rows = 2
-    env_cfg.terrain.num_cols = 1
+    env_cfg.terrain.num_cols = 2
     env_cfg.terrain.height = [0.02, 0.02]
-    env_cfg.terrain.terrain_dict = {"smooth slope": 0., 
-                                    "rough slope up": 0.0,
-                                    "rough slope down": 0.0,
-                                    "rough stairs up": 0., 
-                                    "rough stairs down": 0., 
-                                    "discrete": 0., 
-                                    "stepping stones": 0.0,
-                                    "gaps": 0., 
-                                    "smooth flat": 0,
-                                    "pit": 0.0,
-                                    "wall": 0.0,
-                                    "platform": 0.,
-                                    "large stairs up": 0.,
-                                    "large stairs down": 0.,
-                                    "parkour": 0.2*0,
-                                    "parkour_hurdle": 0.2*0,
-                                    "parkour_flat": 0.,
-                                    "parkour_step": 1.0,
-                                    "parkour_gap": 0.2*0, 
-                                    "demo": 0.2*0}
+    env_cfg.terrain.terrain_dict = {
+                                    "parkour_flat": 0.5,
+                                    "parkour_step": 1.0,}
     
     env_cfg.terrain.terrain_proportions = list(env_cfg.terrain.terrain_dict.values())
     env_cfg.terrain.curriculum = False
@@ -217,6 +200,6 @@ def play(args):
 if __name__ == '__main__':
     EXPORT_POLICY = False
     RECORD_FRAMES = False
-    MOVE_CAMERA = False
+    MOVE_CAMERA = True
     args = get_args()
     play(args)

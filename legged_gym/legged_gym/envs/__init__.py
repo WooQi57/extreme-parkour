@@ -46,6 +46,8 @@ from .go1g.go1gb_config import Go1GBRoughCfg, Go1GBRoughCfgPPO
 from .go1g.go1g import Go1G
 from .go1g.go1g_pos import Go1GP
 from .go1g.go1gbox import Go1GB
+from .go2.go2_config import Go2RoughCfg, Go2RoughCfgPPO
+from .go2.go2 import Go2
 
 import os
 
@@ -60,3 +62,4 @@ task_registry.register( "go1", LeggedRobot, Go1RoughCfg(), Go1RoughCfgPPO() )
 task_registry.register( "go1g", Go1G, Go1GRoughCfg(), Go1GRoughCfgPPO() )
 task_registry.register( "go1gp", Go1GP, Go1GPRoughCfg(), Go1GPRoughCfgPPO() )
 task_registry.register( "go1gb", Go1GB, Go1GBRoughCfg(), Go1GBRoughCfgPPO() )
+task_registry.register( "go2", Go2, Go2RoughCfg(), Go2RoughCfgPPO() )
