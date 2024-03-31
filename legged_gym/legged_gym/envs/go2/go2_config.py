@@ -119,7 +119,7 @@ class Go2RoughCfg( LeggedRobotCfg ):
         foot_name = "foot"
         finger_name = "finger"
         penalize_contacts_on = ["thigh", "calf", "finger", "gripper"]
-        terminate_after_contacts_on = ["base"]#, "thigh", "calf"]
+        terminate_after_contacts_on = ["base","thigh","finger", "gripper"]#, "thigh", "calf"]
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
 
     class domain_rand( LeggedRobotCfg.domain_rand):
@@ -148,11 +148,11 @@ class Go2RoughCfg( LeggedRobotCfg ):
             tracking_pitch = 0.5
 
             # regularization rewards
-            # lin_vel_z = -1.0  
+            lin_vel_z = -1.0  # for walking only
             ang_vel_xy = -0.05
             orientation = -1.
             dof_acc = -2.5e-7
-            collision = -5.  # 
+            collision = -10.  # -5
             action_rate = -0.1
             delta_torques = -1.0e-7
             torques = -0.00001
@@ -180,7 +180,7 @@ class Go2RoughCfg( LeggedRobotCfg ):
             lin_vel_y = [-0.5, 0.5]   # min max [m/s]
             omega = [-0.7, 0.7]    # min max [rad/s]
             pitch = [-0.7, 0.7]  # min max [rad]
-        lin_vel_clip = 0.2  #0.2
+        lin_vel_clip = 0.02  #0.2
         ang_clip = 0.05
 
     class sim (LeggedRobotCfg.sim):

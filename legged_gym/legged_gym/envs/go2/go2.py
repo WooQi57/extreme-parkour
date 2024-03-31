@@ -310,7 +310,8 @@ class Go2(BaseTask):
     def check_termination(self):
         """ Check if environments need to be reset
         """
-        self.reset_buf = torch.zeros((self.num_envs, ), dtype=torch.bool, device=self.device)
+        # self.reset_buf = torch.zeros((self.num_envs, ), dtype=torch.bool, device=self.device)
+        self.reset_buf = torch.any(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 1., dim=1)
         roll_cutoff = torch.abs(self.roll) > 1.5
         # pitch_cutoff = torch.abs(self.pitch) > 1.5
         reach_goal_cutoff = self.cur_goal_idx >= self.cfg.terrain.num_goals
@@ -410,8 +411,10 @@ class Go2(BaseTask):
             self.delta_next_yaw = self.next_target_yaw - self.yaw
 
         self.delta_pitch = self.commands[:, 3] - self.pitch
-        self.delta_z = self.cur_goals[:, 2] - self.root_states[:, 2]
+        self.delta_z = self.cur_goals[:, 2] + 0.35 - self.root_states[:, 2]
         self.delta_z[self.env_class == 0] = 0
+        # print(f"{self.cur_goals[:, 2]=}")
+        # print(f"{self.root_states[:, 2]=}")
 
         self.commands[self.env_class!=0, 2] = torch.clip(0.5*wrap_to_pi(self.target_yaw[self.env_class!=0] - self.yaw[self.env_class!=0]), self.command_ranges["omega"][0], self.command_ranges["omega"][1])
 
@@ -1358,7 +1361,7 @@ class Go2(BaseTask):
     
     def _reward_lin_vel_z(self):
         rew = torch.square(self.base_lin_vel[:, 2])
-        rew[self.env_class != 17] *= 0.5
+        rew[self.env_class != 0] = 0.
         return rew
     
     def _reward_ang_vel_xy(self):
