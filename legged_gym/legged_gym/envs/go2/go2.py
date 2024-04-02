@@ -373,7 +373,7 @@ class Go2(BaseTask):
 
         # log additional curriculum info
         if self.cfg.terrain.curriculum:
-            self.extras["episode"]["terrain_level"] = torch.mean(self.terrain_levels.float())
+            self.extras["episode"]["terrain_level"] = torch.mean(self.terrain_levels[self.env_class!=0].float())
         if self.cfg.commands.curriculum:
             self.extras["episode"]["max_command_x"] = self.command_ranges["lin_vel_x"][1]
         # send timeout info to the algorithm
@@ -609,7 +609,9 @@ class Go2(BaseTask):
         Args:
             env_ids (List[int]): Environments ids for which new commands are needed
         """
-        self.commands[env_ids, 0] = torch_rand_float(self.command_ranges["lin_vel_x"][0], self.command_ranges["lin_vel_x"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        walking_vx = torch_rand_float(self.command_ranges["lin_vel_x"][0], self.command_ranges["lin_vel_x"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        parkour_vx = torch_rand_float(self.command_ranges["lin_vel_x_parkour"][0], self.command_ranges["lin_vel_x_parkour"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+        self.commands[env_ids, 0] = (self.env_class[env_ids] != 0)*parkour_vx + (self.env_class[env_ids] == 0)*walking_vx
         self.commands[env_ids, 1] = torch_rand_float(self.command_ranges["lin_vel_y"][0], self.command_ranges["lin_vel_y"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 2] = torch_rand_float(self.command_ranges["omega"][0], self.command_ranges["omega"][1], (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids, 3] = torch_rand_float(self.command_ranges["pitch"][0], self.command_ranges["pitch"][1], (len(env_ids), 1), device=self.device).squeeze(1)
@@ -619,7 +621,7 @@ class Go2(BaseTask):
         self.commands[env_ids, 2:4] *= torch.abs(self.commands[env_ids, 2:4]) > self.cfg.commands.ang_clip
 
         # set commands to zero for parkour
-        self.commands[env_ids, 0] *= (self.env_class[env_ids] != 0)*torch.sign(self.commands[env_ids, 0]) + (self.env_class[env_ids] == 0) # positive for parkour
+        # self.commands[env_ids, 0] *= (self.env_class[env_ids] != 0)*torch.sign(self.commands[env_ids, 0]) + (self.env_class[env_ids] == 0) # positive for parkour
         self.commands[env_ids, 1:] *= (self.env_class[env_ids] == 0).unsqueeze(1)
 
 
@@ -729,7 +731,7 @@ class Go2(BaseTask):
         
         dis_to_origin = torch.norm(self.root_states[env_ids, :2] - self.env_origins[env_ids, :2], dim=1)
         threshold = self.commands[env_ids, 0] * self.cfg.env.episode_length_s
-        move_up =dis_to_origin > 0.8*threshold
+        move_up =dis_to_origin > 0.75*threshold
         move_down = dis_to_origin < 0.4*threshold
 
         self.terrain_levels[env_ids] += 1 * move_up - 1 * move_down
@@ -1331,8 +1333,24 @@ class Go2(BaseTask):
     def _reward_tracking_z(self):
         if hasattr(self, 'delta_z'):
             rew = torch.exp(-torch.abs(self.delta_z))
+            # rew = 1/(torch.abs(self.delta_z)+0.1)
+            rew[self.env_class == 0] = 0.
         else:
             rew = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
+        # print(f"tracking z: {rew}")
+        return rew
+    
+    def _reward_lin_vel_z_parkour(self):
+        if hasattr(self, 'delta_z'):
+            # rew = torch.clamp(self.base_lin_vel[:, 2] *(torch.norm(self.target_pos_rel, dim=-1)<0.3), min=0, max=1)
+            # rew = torch.clamp(self.base_lin_vel[:, 2] * (self.delta_z > 0.2), min=0, max=1) + (self.delta_z <= 0.2).float()
+            rew = torch.clamp(self.base_lin_vel[:, 2] * (self.delta_z > 0.2)*(torch.norm(self.target_pos_rel, dim=-1)<1.5), min=0, max=1)
+            rew[self.env_class == 0] = 0.
+            # print(f"{self.delta_z=}")
+        else:
+            rew = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
+        # print(f"{torch.norm(self.target_pos_rel, dim=-1)=}")
+        # print(f"lin vel parkour: {rew}")
         return rew
 
     def _reward_tracking_lin_vel(self):
@@ -1359,14 +1377,14 @@ class Go2(BaseTask):
         rew = torch.exp(-torch.abs(ee_height))*(self.commands[:, 3]>0)
         return rew
     
-    def _reward_lin_vel_z(self):
+    def _reward_lin_vel_z_walking(self):
         rew = torch.square(self.base_lin_vel[:, 2])
         rew[self.env_class != 0] = 0.
         return rew
     
     def _reward_ang_vel_xy(self):
         return torch.sum(torch.square(self.base_ang_vel[:, :2]), dim=1)
-     
+    
     def _reward_orientation(self):
         rew = torch.sum(torch.square(self.projected_gravity[:, :2]), dim=1)
         rew[self.env_class != 17] = 0.

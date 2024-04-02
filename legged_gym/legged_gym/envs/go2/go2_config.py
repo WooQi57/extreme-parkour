@@ -119,7 +119,7 @@ class Go2RoughCfg( LeggedRobotCfg ):
         foot_name = "foot"
         finger_name = "finger"
         penalize_contacts_on = ["thigh", "calf", "finger", "gripper"]
-        terminate_after_contacts_on = ["base","thigh","finger", "gripper"]#, "thigh", "calf"]
+        terminate_after_contacts_on = ["base"]#,"thigh","finger", "gripper"]
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
 
     class domain_rand( LeggedRobotCfg.domain_rand):
@@ -139,16 +139,17 @@ class Go2RoughCfg( LeggedRobotCfg ):
     class rewards( LeggedRobotCfg.rewards ):
         class scales:
             # tracking rewards
-            tracking_goal_vel = 1.5
+            tracking_goal_vel = 2.0 # 1.5
             # tracking_yaw = 0.5
             
-            tracking_lin_vel = 1.5 # increase cmd following
+            tracking_lin_vel = 2.0 # increase cmd following 1.5
             tracking_yaw_vel = 1.5  # 0.5
-            tracking_z = 0.5
+            tracking_z = 0.05*0
+            lin_vel_z_parkour = 0.8*0
             tracking_pitch = 0.5
 
             # regularization rewards
-            lin_vel_z = -1.0  # for walking only
+            lin_vel_z_walking = -1.0  # for walking only
             ang_vel_xy = -0.05
             orientation = -1.
             dof_acc = -2.5e-7
@@ -177,6 +178,7 @@ class Go2RoughCfg( LeggedRobotCfg ):
         num_commands = 4 # default: lin_vel_x, lin_vel_y, omega, pitch
         class max_ranges:
             lin_vel_x = [-0.5, 1.5] # min max [m/s]
+            lin_vel_x_parkour = [0.5, 1.5] # min max [m/s]
             lin_vel_y = [-0.5, 0.5]   # min max [m/s]
             omega = [-0.7, 0.7]    # min max [rad/s]
             pitch = [-0.7, 0.7]  # min max [rad]
@@ -204,7 +206,7 @@ class Go2RoughCfg( LeggedRobotCfg ):
         
 class Go2RoughCfgPPO( LeggedRobotCfgPPO ):
     class algorithm( LeggedRobotCfgPPO.algorithm ):
-        entropy_coef = 0.01  # 0
+        entropy_coef = 0.0  # 0
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'go2'

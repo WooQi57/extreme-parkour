@@ -513,7 +513,7 @@ def parkour_step_terrain(terrain,
     # terrain.height_field_raw[:] = -200
     mid_y = terrain.length // 2  # length is actually y width
     # print(f"{step_height=}")
-    step_height = 0.2
+    # step_height = 0.1
     dis_x_min = round( (x_range[0] + step_height) / terrain.horizontal_scale)
     dis_x_max = round( (x_range[1] + step_height) / terrain.horizontal_scale)
     dis_y_min = round(y_range[0] / terrain.horizontal_scale)
@@ -554,7 +554,7 @@ def parkour_step_terrain(terrain,
     # import ipdb; ipdb.set_trace()
     if final_dis_x > terrain.width:
         final_dis_x = terrain.width - 0.5 // terrain.horizontal_scale
-    goals[-1] = [final_dis_x, mid_y,stair_height*terrain.vertical_scale/ terrain.horizontal_scale]
+    goals[-1] = [final_dis_x, mid_y,0.0]
     
     terrain.goals = goals * terrain.horizontal_scale
     

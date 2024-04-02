@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-#SBATCH --job-name="101-04-couchcmd"
+#SBATCH --job-name="101-07-couchcmd"
 #SBATCH --partition=iris-hi
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/101-04-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/101-07-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
 #SBATCH --time=24:00:00 # Max job length is 1 day
@@ -31,7 +31,15 @@ echo "
 --------------------------------------------
 --------------------------------------------
 task description:
-    terminate after thigh finger gripper contacted
+    no reward for jumping
+    _reward_lin_vel_z_parkour 0.8 around waypoint and height condition
+
+    _reward_lin_vel_z_parkour becomes 1 if not climbing
+    entropy coeff 0
+    clip _reward_lin_vel_z_parkour (0-1)*0.5
+    make tracking z zero for walking
+    adjust parkour vx and success threshold
+    use separate vx for walking and parkour
     increase collision penalty for climbing 10
     add z vel penalty for walking
     more cutoff
@@ -44,7 +52,7 @@ task description:
 --------------------------------------------
 --------------------------------------------"
 
-srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go2 --exptid 101-04-couchcmd --device cuda:0'
+srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go2 --exptid 101-07-couchcmd --device cuda:0'
 
 # done
 echo "Done"
