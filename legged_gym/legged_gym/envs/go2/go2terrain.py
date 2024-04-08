@@ -175,7 +175,7 @@ class Terrain:
                                    )
             
             self.add_roughness(terrain)
-        elif choice < self.proportions[1]:
+        elif choice <= self.proportions[1]:
             idx = 1
             parkour_step_terrain(terrain,
                                    num_stones=self.num_goals - 2,
@@ -186,6 +186,8 @@ class Terrain:
                                    pad_height=0,
                                    )
             self.add_roughness(terrain)
+        else:
+            print(f"current choice:{choice}, proportions:{self.proportions}")
 
         # np.set_printoptions(precision=2)
         # print(np.array(self.proportions), choice)

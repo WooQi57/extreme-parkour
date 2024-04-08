@@ -76,7 +76,7 @@ def play(args):
     env_cfg.terrain.height = [0.02, 0.02]
     env_cfg.terrain.terrain_dict = {
                                     "parkour_flat": 0.5,
-                                    "parkour_step": 1.0,}
+                                    "parkour_step": 0.5,}
     
     env_cfg.terrain.terrain_proportions = list(env_cfg.terrain.terrain_dict.values())
     env_cfg.terrain.curriculum = False
