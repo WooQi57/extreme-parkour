@@ -139,15 +139,16 @@ def play(args):
                     # -0.2128,  0.7953,  0.3242,  0.2088,  0.2267,  0.1037,  0.2565, -0.0339,
                     # -0.9887,  0.2621,  0.0845, -0.7242, -0.3818,  0.0784,  0.1277, -0.7304,
                     # 0.0136,  0.1669,  0.0916, -0.1428, -0.9189,  0.8611,  0.1624, -0.2422],device=env.device)
-                    actions = policy_jit(obs.detach(), depth_latent)
-                    # actions = policy_jit(obs.detach(), infos["depth"])
+                    # actions = policy_jit(obs.detach(), depth_latent)
+                    actions = policy_jit(obs.detach(), infos["depth"])
                 else:
-                    depth_buffer = torch.ones((env_cfg.env.num_envs, 32), device=env.device)
-                    depth_latent[0]=torch.tensor([-0.0893, -0.8894,  0.2022,  0.9225, -0.2467,  0.1751, -0.0564,  0.1091,
-                    -0.2128,  0.7953,  0.3242,  0.2088,  0.2267,  0.1037,  0.2565, -0.0339,
-                    -0.9887,  0.2621,  0.0845, -0.7242, -0.3818,  0.0784,  0.1277, -0.7304,
-                    0.0136,  0.1669,  0.0916, -0.1428, -0.9189,  0.8611,  0.1624, -0.2422],device=env.device)
-                    # depth_buffer = torch.ones((env_cfg.env.num_envs, 58, 87), device=env.device)
+                    # depth_buffer = torch.ones((env_cfg.env.num_envs, 32), device=env.device)
+                    # depth_latent[0]=torch.tensor([-0.0893, -0.8894,  0.2022,  0.9225, -0.2467,  0.1751, -0.0564,  0.1091,
+                    # -0.2128,  0.7953,  0.3242,  0.2088,  0.2267,  0.1037,  0.2565, -0.0339,
+                    # -0.9887,  0.2621,  0.0845, -0.7242, -0.3818,  0.0784,  0.1277, -0.7304,
+                    # 0.0136,  0.1669,  0.0916, -0.1428, -0.9189,  0.8611,  0.1624, -0.2422],device=env.device)
+                    
+                    depth_buffer = torch.ones((env_cfg.env.num_envs, 58, 87), device=env.device)
                     actions = policy_jit(obs.detach(), depth_buffer)
             else:
                 obs_jit = torch.cat((obs.detach()[:, :env_cfg.env.n_proprio+env_cfg.env.n_priv], obs.detach()[:, -env_cfg.env.history_len*env_cfg.env.n_proprio:]), dim=1)

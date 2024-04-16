@@ -634,7 +634,7 @@ class Go2(BaseTask):
         # set commands to zero for parkour
         # self.commands[env_ids, 0] *= (self.env_class[env_ids] != 0)*torch.sign(self.commands[env_ids, 0]) + (self.env_class[env_ids] == 0) # positive for parkour
         self.commands[env_ids, 1:] *= (self.env_class[env_ids] == 0).unsqueeze(1)
-        self.commands*=0
+        # self.commands*=0
         # print(f"{self.commands=}")
 
     def _compute_torques(self, actions):
