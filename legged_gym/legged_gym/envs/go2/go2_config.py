@@ -82,7 +82,7 @@ class Go2RoughCfg( LeggedRobotCfg ):
         n_scan = 132
         n_priv = 3+3 +3
         n_priv_latent = 4 + 1 + 14 +14
-        n_proprio = 3 + 2 + 2 + 4 + 13*3 + 4
+        n_proprio = 1 + 3 + 2 + 2 + 4 + 13*3 + 4
         history_len = 10
 
         num_observations = n_proprio + n_scan + history_len*n_proprio + n_priv_latent + n_priv #n_scan + n_proprio + n_priv #187 + 47 + 5 + 12 
@@ -183,8 +183,8 @@ class Go2RoughCfg( LeggedRobotCfg ):
 
     class terrain( LeggedRobotCfg.terrain):
         terrain_dict = {
-                "parkour_flat": 0.3,
-                "parkour_step": 0.7,}
+                "parkour_flat": 0.5,
+                "parkour_step": 0.5,}
         terrain_proportions = list(terrain_dict.values())
         y_range = [-0.1, 0.1]
         cur_threshold_hi = 9
@@ -225,7 +225,7 @@ class Go2RoughCfg( LeggedRobotCfg ):
         
 class Go2RoughCfgPPO( LeggedRobotCfgPPO ):
     class algorithm( LeggedRobotCfgPPO.algorithm ):
-        entropy_coef = 0.01  # 0
+        entropy_coef = 0.001  # 0 0.01
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'go2'

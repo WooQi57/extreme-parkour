@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-#SBATCH --job-name="101-17-50"
+#SBATCH --job-name="100-18-50"
 #SBATCH --partition=iris-hi
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/101-17-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/100-18-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
 #SBATCH --time=48:00:00 # Max job length is 2 day
@@ -31,16 +31,16 @@ echo "
 --------------------------------------------
 --------------------------------------------
 task description:
+    use two actors
+    from scratch again
+
+
     cur_threshold_lo = 6.5
-    terrain_dict = {"parkour_flat": 0.3, "parkour_step": 0.7,}
     step x range should be greater than 0.5
     step_height=0.1 + 0.45*difficulty
     found bug: obs_prop_depth[:, 5] = 0
-    use_camera
-    resume from 100-17-1000
     rest_offset = 0.01  # looks better in render if 0.005
     low y_range
-    from scratch again
 
     more tracking_goal_vel and less vz
     add pitch termination (abs>1.5) - useful
@@ -82,7 +82,7 @@ task description:
 --------------------------------------------
 --------------------------------------------" 
 
-srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go2 --exptid 101-17-cam55mx --device cuda:0 --resume --resumeid 100-17 --use_camera
+srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go2 --exptid 100-18-2actors --device cuda:0
 '
 
 # done

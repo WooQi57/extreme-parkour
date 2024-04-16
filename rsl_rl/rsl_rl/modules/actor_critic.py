@@ -154,7 +154,9 @@ class Actor(nn.Module):
                 actor_layers.append(activation)
         if tanh_encoder_output:
             actor_layers.append(nn.Tanh())
-        self.actor_backbone = nn.Sequential(*actor_layers)
+        # self.actor_backbone = nn.Sequential(*actor_layers)
+        self.actor_backbone0 = nn.Sequential(*actor_layers)
+        self.actor_backbone1 = nn.Sequential(*actor_layers)
 
     def forward(self, obs, hist_encoding: bool, eval=False, scandots_latent=None):
         if not eval:
@@ -173,7 +175,11 @@ class Actor(nn.Module):
             else:
                 latent = self.infer_priv_latent(obs)
             backbone_input = torch.cat([obs_prop_scan, obs_priv_explicit, latent], dim=1)
-            backbone_output = self.actor_backbone(backbone_input)
+            backbone_output0 = self.actor_backbone0(backbone_input)
+            backbone_output1 = self.actor_backbone1(backbone_input)
+            backbone_output = (obs_prop_scan[:,0] == 0).view(-1,1)*backbone_output0 + (obs_prop_scan[:,0] == 1).view(-1,1)*backbone_output1
+            
+            # backbone_output = self.actor_backbone(backbone_input)
             return backbone_output
         else:
             if self.if_scan_encode:
@@ -191,7 +197,11 @@ class Actor(nn.Module):
             else:
                 latent = self.infer_priv_latent(obs)
             backbone_input = torch.cat([obs_prop_scan, obs_priv_explicit, latent], dim=1)
-            backbone_output = self.actor_backbone(backbone_input)
+            backbone_output0 = self.actor_backbone0(backbone_input)
+            backbone_output1 = self.actor_backbone1(backbone_input)
+            backbone_output = (obs_prop_scan[:,0] == 0).view(-1,1)*backbone_output0 + (obs_prop_scan[:,0] == 1).view(-1,1)*backbone_output1
+
+            # backbone_output = self.actor_backbone(backbone_input)
             return backbone_output
     
     def infer_priv_latent(self, obs):

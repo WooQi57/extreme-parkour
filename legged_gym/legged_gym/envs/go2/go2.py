@@ -439,6 +439,7 @@ class Go2(BaseTask):
 
         
         obs_buf = torch.cat((#skill_vector, 
+                            self.env_class.unsqueeze(1),  #[1,1]
                             base_ang_vel  * self.obs_scales.ang_vel,   #[1,3]
                             imu_obs,    #[1,2]
                             self.delta_z[:, None],  #[1,1]
