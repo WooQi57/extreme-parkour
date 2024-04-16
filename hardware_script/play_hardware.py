@@ -32,7 +32,7 @@ CONTACT_THRESHOLD = [26,29,25,27] #[16,19,15,17]+5
 WALK_STRAIGHT = False
 USE_TIMER = False
 PLOT_DATA = False
-USE_GRIPPPER = False
+USE_GRIPPPER = True
 
 if USE_GRIPPPER:
     from dynamixel_sdk_custom_interfaces.msg import SetPosition
@@ -61,7 +61,7 @@ class DeployNode(Node):
             self.gripper_timer = self.create_timer(1.0 / 100, self.gripper_timer_callback)
             self.gripper_msg = SetPosition()
             self.gripper_msg.id = 1
-            self.gripper_msg.position = 2000
+            self.gripper_msg.position = 1500
 
         self.motor_pub = self.create_publisher(LowCmd, "lowcmd", 1)
         self.motor_pub_freq = 50
@@ -187,12 +187,12 @@ class DeployNode(Node):
             self.gripper_msg.position = 1000
 
         if msg.keys == 16 and USE_GRIPPPER: # R2 open gripper
-            self.gripper_msg.position = 2000
+            self.gripper_msg.position = 1500
 
         cmd_vx = msg.ly * 0.8 if msg.ly > 0 else msg.ly * 0.3
         cmd_vy = msg.lx * -0.5  # 0.5
-        cmd_delta_yaw = msg.rx * -0.5  # 1  0.6
-        cmd_pitch = msg.ry * 0.5  # 0.7
+        cmd_delta_yaw = msg.rx * -0.8  # 0.5 1  0.6
+        cmd_pitch = msg.ry * 0.7  # 0.7
         if not WALK_STRAIGHT:
             self.command = np.array([cmd_vx, cmd_vy, cmd_delta_yaw, cmd_pitch, 0])
 
