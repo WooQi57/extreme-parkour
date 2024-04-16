@@ -1,12 +1,12 @@
 #!/bin/bash
 #
-#SBATCH --job-name="100-13-cam"
+#SBATCH --job-name="101-17-50"
 #SBATCH --partition=iris-hi
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/100-13-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/101-17-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
-#SBATCH --time=24:00:00 # Max job length is 1 day
+#SBATCH --time=48:00:00 # Max job length is 2 day
 #SBATCH --nodes=1 # Only use one node (machine)
 #SBATCH --mem=32G
 #SBATCH --exclude=iris-hp-z8,iris1,iris2,iris3,iris4
@@ -31,18 +31,34 @@ echo "
 --------------------------------------------
 --------------------------------------------
 task description:
+    cur_threshold_lo = 6.5
+    terrain_dict = {"parkour_flat": 0.3, "parkour_step": 0.7,}
+    step x range should be greater than 0.5
+    step_height=0.1 + 0.45*difficulty
+    found bug: obs_prop_depth[:, 5] = 0
     use_camera
-    resumed from 106-12 15000
-    lin_vel_x_parkour = [0.5, 1.2] # min max [m/s]
-    adjust weights
+    resume from 100-17-1000
+    rest_offset = 0.01  # looks better in render if 0.005
+    low y_range
+    from scratch again
+
+    more tracking_goal_vel and less vz
+    add pitch termination (abs>1.5) - useful
+    use urdf v6
+    cam angle 27+-5
+    position = [0.3, 0, 0.147]  # front camera
+
+    edit on_policy_runner to mask obs[5]=0 for student policy
+    #resumed from 106-12 15000
+    lin_vel_x_parkour = [0.5, 1.2] # min max [m/s] - useful
     use global vel_z 
     add terrain level reward
-    resume from 102-12
+    #resume from 102-12
     use const dist for terrain level instead of v*t
     no pitch for climbing
     vel z reward 1.25 vel max 2
-    resum from 100-12
-    resume from 103-10 2200
+    #resum from 100-12
+    #resume from 103-10 2200
     tracking_goal_vel = 4.0 
     #resume from 101-08
     use feet height for delta_z
@@ -66,7 +82,7 @@ task description:
 --------------------------------------------
 --------------------------------------------" 
 
-srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go2 --exptid 100-13-cam --device cuda:0 --resume --resumeid 106-12 --checkpoint 15000 --use_camera
+srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go2 --exptid 101-17-cam55mx --device cuda:0 --resume --resumeid 100-17 --use_camera
 '
 
 # done

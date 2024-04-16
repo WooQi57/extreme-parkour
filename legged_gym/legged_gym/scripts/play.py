@@ -69,7 +69,7 @@ def play(args):
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 1
     env_cfg.env.num_envs = 2 if not args.save else 64  # 2
-    env_cfg.env.episode_length_s = 30 # 60 30  8
+    env_cfg.env.episode_length_s = 20 # 60 30  8
     env_cfg.commands.resampling_time = 6 # 60 10  2
     env_cfg.terrain.num_rows = 2
     env_cfg.terrain.num_cols = 2
@@ -82,7 +82,7 @@ def play(args):
     env_cfg.terrain.curriculum = False
     env_cfg.terrain.max_difficulty = True
     
-    env_cfg.depth.angle = [0, 1]
+    env_cfg.depth.angle = [27-0, 27+1]
     env_cfg.noise.add_noise = True
     env_cfg.domain_rand.randomize_friction = True
     env_cfg.domain_rand.push_robots = False
@@ -134,10 +134,21 @@ def play(args):
             if env.cfg.depth.use_camera:
                 if infos["depth"] is not None:
                     depth_latent = torch.ones((env_cfg.env.num_envs, 32), device=env.device)
-                    actions, depth_latent = policy_jit(obs.detach(), True, infos["depth"], depth_latent)
+                    
+                    # depth_latent[0]=torch.tensor([-0.0893, -0.8894,  0.2022,  0.9225, -0.2467,  0.1751, -0.0564,  0.1091,
+                    # -0.2128,  0.7953,  0.3242,  0.2088,  0.2267,  0.1037,  0.2565, -0.0339,
+                    # -0.9887,  0.2621,  0.0845, -0.7242, -0.3818,  0.0784,  0.1277, -0.7304,
+                    # 0.0136,  0.1669,  0.0916, -0.1428, -0.9189,  0.8611,  0.1624, -0.2422],device=env.device)
+                    actions = policy_jit(obs.detach(), depth_latent)
+                    # actions = policy_jit(obs.detach(), infos["depth"])
                 else:
-                    depth_buffer = torch.ones((env_cfg.env.num_envs, 58, 87), device=env.device)
-                    actions, depth_latent = policy_jit(obs.detach(), False, depth_buffer, depth_latent)
+                    depth_buffer = torch.ones((env_cfg.env.num_envs, 32), device=env.device)
+                    depth_latent[0]=torch.tensor([-0.0893, -0.8894,  0.2022,  0.9225, -0.2467,  0.1751, -0.0564,  0.1091,
+                    -0.2128,  0.7953,  0.3242,  0.2088,  0.2267,  0.1037,  0.2565, -0.0339,
+                    -0.9887,  0.2621,  0.0845, -0.7242, -0.3818,  0.0784,  0.1277, -0.7304,
+                    0.0136,  0.1669,  0.0916, -0.1428, -0.9189,  0.8611,  0.1624, -0.2422],device=env.device)
+                    # depth_buffer = torch.ones((env_cfg.env.num_envs, 58, 87), device=env.device)
+                    actions = policy_jit(obs.detach(), depth_buffer)
             else:
                 obs_jit = torch.cat((obs.detach()[:, :env_cfg.env.n_proprio+env_cfg.env.n_priv], obs.detach()[:, -env_cfg.env.history_len*env_cfg.env.n_proprio:]), dim=1)
                 actions = policy_jit(obs.detach())
@@ -145,22 +156,27 @@ def play(args):
             if env.cfg.depth.use_camera:
                 if infos["depth"] is not None:
                     obs_student = obs[:, :env.cfg.env.n_proprio].clone()
-                    obs_student[:, 6:8] = 0
-                    depth_latent_and_yaw = depth_encoder(infos["depth"], obs_student)
-                    depth_latent = depth_latent_and_yaw[:, :-2]
-                    yaw = depth_latent_and_yaw[:, -2:]
-                obs[:, 6:8] = 1.5*yaw
+                    obs_student[:, 5] = 0
+                    depth_latent = depth_encoder(infos["depth"], obs_student)
+                    # depth_latent = depth_latent_and_yaw[:, :-2]
+                    # yaw = depth_latent_and_yaw[:, -2:]
+                # obs[:, 6:8] = 1.5*yaw
                     
             else:
                 depth_latent = None
-            
+
+        #     depth_latent[0]=torch.tensor([-0.0893, -0.8894,  0.2022,  0.9225, -0.2467,  0.1751, -0.0564,  0.1091,
+        #  -0.2128,  0.7953,  0.3242,  0.2088,  0.2267,  0.1037,  0.2565, -0.0339,
+        #  -0.9887,  0.2621,  0.0845, -0.7242, -0.3818,  0.0784,  0.1277, -0.7304,
+        #   0.0136,  0.1669,  0.0916, -0.1428, -0.9189,  0.8611,  0.1624, -0.2422],device=env.device)
+
             if hasattr(ppo_runner.alg, "depth_actor"):
                 actions = ppo_runner.alg.depth_actor(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
             else:
                 # obs[0,env_cfg.env.n_proprio+env_cfg.env.n_scan:env_cfg.env.n_proprio+env_cfg.env.n_scan+env_cfg.env.n_priv] = estimator(obs[:, :env_cfg.env.n_proprio])
                 # print((obs==0).sum().item())
                 actions = policy(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
-        # print(actions[:,-1])
+        # print(env.commands[:,1])
         obs, _, rews, dones, infos = env.step(actions.detach())
         if args.web:
             web_viewer.render(fetch_results=True,
@@ -191,7 +207,7 @@ def play(args):
                     axs[j].grid(True, which='both', axis='both')
                     axs[j].minorticks_on()
                 plt.tight_layout()
-                plt.savefig(f'../figs/cmd_following_{i}_{f}.png')
+                # plt.savefig(f'../figs/cmd_following_{i}_{f}.png')
 
             time_hist = []
             angle_hist = []

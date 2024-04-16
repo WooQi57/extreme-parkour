@@ -93,8 +93,8 @@ class Go2RoughCfg( LeggedRobotCfg ):
         camera_terrain_num_rows = 10
         camera_terrain_num_cols = 20
 
-        position = [0.27, 0, 0.03]  # front camera
-        angle = [27-5, 27+5]  # positive pitch down
+        position = [0.3, 0, 0.147]  # front camera
+        angle = [27-5, 27+5]  # positive pitch down  #27-5,27+5
 
         original = (106, 60)
         resized = (87, 58)
@@ -128,7 +128,7 @@ class Go2RoughCfg( LeggedRobotCfg ):
     class asset( LeggedRobotCfg.asset ):
         # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go1/urdf/go1_new.urdf'
         # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go1g/urdf/go1_gripper.urdf'
-        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2g_description_v5.urdf'
+        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2g_description_v6.urdf'
         foot_name = "foot"
         finger_name = "finger"
         penalize_contacts_on = ["base", "thigh", "calf", "finger", "gripper"]
@@ -152,14 +152,14 @@ class Go2RoughCfg( LeggedRobotCfg ):
     class rewards( LeggedRobotCfg.rewards ):
         class scales:
             # tracking rewards
-            tracking_goal_vel = 3. # 1.5
+            tracking_goal_vel = 2. # 1.5
             # tracking_yaw = 0.5
             
             tracking_lin_vel = 1.5 # increase cmd following 1.5
             tracking_yaw_vel = 1.5  # 0.5
             tracking_z = 0.05*0
-            lin_vel_z_parkour = 2
-            tracking_pitch = 1.
+            lin_vel_z_parkour = 0.5
+            tracking_pitch = 1.5 #1.
             terrain_level = 0.1
 
             # regularization rewards
@@ -183,12 +183,15 @@ class Go2RoughCfg( LeggedRobotCfg ):
 
     class terrain( LeggedRobotCfg.terrain):
         terrain_dict = {
-                "parkour_flat": 0.5,
-                "parkour_step": 0.5,}
+                "parkour_flat": 0.3,
+                "parkour_step": 0.7,}
         terrain_proportions = list(terrain_dict.values())
-        y_range = [-0.4, 0.4]
+        y_range = [-0.1, 0.1]
         cur_threshold_hi = 9
-        cur_threshold_lo = 3
+        cur_threshold_lo = 6.5  # 3
+        
+        num_rows= 11 # number of terrain rows (levels)  # spreaded is benifitiall ! 10
+        num_cols = 20 # number of terrain cols (types)  40
 
     class commands( LeggedRobotCfg.commands):
         num_commands = 4 # default: lin_vel_x, lin_vel_y, omega, pitch
@@ -213,7 +216,7 @@ class Go2RoughCfg( LeggedRobotCfg ):
             num_position_iterations = 4
             num_velocity_iterations = 0
             contact_offset = 0.01  # [m]
-            rest_offset = 0.00   # 0.0 [m]
+            rest_offset = 0.01   # 0.0 [m]
             bounce_threshold_velocity = 0.5 #0.5 [m/s]
             max_depenetration_velocity = 1.0
             max_gpu_contact_pairs = 2**23 #2**24 -> needed for 8000 envs and more

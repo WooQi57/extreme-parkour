@@ -11,7 +11,7 @@ class RecurrentDepthBackbone(nn.Module):
         self.base_backbone = base_backbone
         if env_cfg == None:
             self.combination_mlp = nn.Sequential(
-                                    nn.Linear(32 + 53, 128),
+                                    nn.Linear(32 + 54, 128),
                                     activation,
                                     nn.Linear(128, 32)
                                 )
@@ -23,7 +23,7 @@ class RecurrentDepthBackbone(nn.Module):
                                     )
         self.rnn = nn.GRU(input_size=32, hidden_size=512, batch_first=True)
         self.output_mlp = nn.Sequential(
-                                nn.Linear(512, 32+2),
+                                nn.Linear(512, 32),  # 32+2 for two yaws
                                 last_activation
                             )
         self.hidden_states = None

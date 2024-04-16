@@ -153,7 +153,7 @@ class Go2(BaseTask):
         self.obs_buf = torch.clip(self.obs_buf, -clip_obs, clip_obs)
         if self.privileged_obs_buf is not None:
             self.privileged_obs_buf = torch.clip(self.privileged_obs_buf, -clip_obs, clip_obs)
-        self.extras["delta_yaw_ok"] = self.delta_yaw < 0.6
+        # self.extras["delta_yaw_ok"] = self.delta_yaw < 0.6
         if self.cfg.depth.use_camera and self.global_counter % self.cfg.depth.update_interval == 0:
             self.extras["depth"] = self.depth_buffer[:, -2]  # have already selected last one
         else:
@@ -312,8 +312,8 @@ class Go2(BaseTask):
         """
         self.reset_buf = torch.zeros((self.num_envs, ), dtype=torch.bool, device=self.device)
         # self.reset_buf = torch.any(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 1., dim=1)
-        roll_cutoff = torch.abs(self.roll) > 1.5
-        # pitch_cutoff = torch.abs(self.pitch) > 1.5
+        roll_cutoff = torch.abs(self.roll) > 1.2
+        pitch_cutoff = torch.abs(self.pitch) > 1.3
         reach_goal_cutoff = self.cur_goal_idx >= self.cfg.terrain.num_goals
         height_cutoff = self.root_states[:, 2] < -0.25
 
@@ -322,7 +322,7 @@ class Go2(BaseTask):
 
         self.reset_buf |= self.time_out_buf
         self.reset_buf |= roll_cutoff
-        # self.reset_buf |= pitch_cutoff
+        self.reset_buf |= pitch_cutoff
         self.reset_buf |= height_cutoff
 
     def reset_idx(self, env_ids):
@@ -342,6 +342,10 @@ class Go2(BaseTask):
         # threshold = self.commands[env_ids, 0] * self.cfg.env.episode_length_s
         # move_up =dis_to_origin > self.cfg.terrain.cur_threshold_hi
         # move_down = dis_to_origin < self.cfg.terrain.cur_threshold_lo
+        
+        # print(f"{self.cfg.terrain.cur_threshold_lo=}")
+        # print(f"{self.cfg.terrain.cur_threshold_hi=}")
+        # print(f"{dis_to_origin=}")
         # print(f"{move_up=}, {move_down=}")
         if self.cfg.terrain.curriculum:
             self._update_terrain_curriculum(env_ids)
@@ -630,7 +634,8 @@ class Go2(BaseTask):
         # set commands to zero for parkour
         # self.commands[env_ids, 0] *= (self.env_class[env_ids] != 0)*torch.sign(self.commands[env_ids, 0]) + (self.env_class[env_ids] == 0) # positive for parkour
         self.commands[env_ids, 1:] *= (self.env_class[env_ids] == 0).unsqueeze(1)
-
+        self.commands*=0
+        # print(f"{self.commands=}")
 
     def _compute_torques(self, actions):
         """ Compute torques from actions.
@@ -651,6 +656,9 @@ class Go2(BaseTask):
                 torques = self.p_gains*(actions_scaled + self.default_dof_pos_all - self.dof_pos) - self.d_gains*self.dof_vel
             else:
                 self.target_angles = self.default_dof_pos_all + actions_scaled
+                # print(f"{self.target_angles=}")
+                # print(f"{self.dof_names=}")
+                # print(f"{self.dof_pos=}")
                 torques = self.motor_strength[0] * self.p_gains*(actions_scaled + self.default_dof_pos_all - self.dof_pos) - self.motor_strength[1] * self.d_gains*self.dof_vel
         elif control_type=="V":
             torques = self.p_gains*(actions_scaled - self.dof_vel) - self.d_gains*(self.dof_vel - self.last_dof_vel)/self.sim_params.dt
@@ -740,7 +748,6 @@ class Go2(BaseTask):
         threshold = self.commands[env_ids, 0] * self.cfg.env.episode_length_s
         move_up =dis_to_origin > self.cfg.terrain.cur_threshold_hi
         move_down = dis_to_origin < self.cfg.terrain.cur_threshold_lo
-
         self.terrain_levels[env_ids] += 1 * move_up - 1 * move_down
         # # Robots that solve the last level are sent to a random one
         self.terrain_levels[env_ids] = torch.where(self.terrain_levels[env_ids]>=self.max_terrain_level,
@@ -1392,6 +1399,9 @@ class Go2(BaseTask):
     def _reward_tracking_pitch(self):
         rew = torch.exp(-torch.abs(self.commands[:, 3] - self.pitch))
         rew[self.env_class != 0] = 0.
+        # print(f"{rew=}")
+        # print(f"{self.pitch=}")
+        # print(f"{self.commands[:, 3]=}")
         return rew
     
     def _reward_tracking_gripper(self):

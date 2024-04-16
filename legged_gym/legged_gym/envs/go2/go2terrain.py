@@ -179,8 +179,8 @@ class Terrain:
             idx = 1
             parkour_step_terrain(terrain,
                                    num_stones=self.num_goals - 2,
-                                   step_height=0.1 + 0.35*difficulty,
-                                   x_range=[0.3,1.5],
+                                   step_height=0.1 + 0.45*difficulty, #0.1 + 0.35*difficulty,
+                                   x_range=[0.5,1.5],
                                    y_range=self.cfg.y_range,
                                    half_valid_width=[0.5, 1],
                                    pad_height=0,
@@ -505,7 +505,7 @@ def parkour_step_terrain(terrain,
                            platform_height=0., 
                            num_stones=8,
                         #    x_range=[1.5, 2.4],
-                            x_range=[0.2, 0.4],
+                           x_range=[0.2, 0.4],
                            y_range=[-0.15, 0.15],
                            half_valid_width=[0.45, 0.5],
                            step_height = 0.2,
@@ -515,7 +515,9 @@ def parkour_step_terrain(terrain,
     # terrain.height_field_raw[:] = -200
     mid_y = terrain.length // 2  # length is actually y width
     # print(f"{step_height=}")
-    # step_height = 0.1
+    # x_range=[0.45,0.5]
+    # step_height = 0.55
+
     dis_x_min = round( (x_range[0] + step_height) / terrain.horizontal_scale)
     dis_x_max = round( (x_range[1] + step_height) / terrain.horizontal_scale)
     dis_y_min = round(y_range[0] / terrain.horizontal_scale)

@@ -231,7 +231,7 @@ class OnPolicyRunner:
         obs = self.env.get_observations()
         infos = {}
         infos["depth"] = self.env.depth_buffer.clone().to(self.device)[:, -1] if self.if_depth else None
-        infos["delta_yaw_ok"] = torch.ones(self.env.num_envs, dtype=torch.bool, device=self.device)
+        # infos["delta_yaw_ok"] = torch.ones(self.env.num_envs, dtype=torch.bool, device=self.device)
         self.alg.depth_encoder.train()
         self.alg.depth_actor.train()
 
@@ -242,33 +242,35 @@ class OnPolicyRunner:
             scandots_latent_buffer = []
             actions_teacher_buffer = []
             actions_student_buffer = []
-            yaw_buffer_student = []
-            yaw_buffer_teacher = []
-            delta_yaw_ok_buffer = []
+            # yaw_buffer_student = []
+            # yaw_buffer_teacher = []
+            # delta_yaw_ok_buffer = []
             for i in range(self.depth_encoder_cfg["num_steps_per_env"]):
                 if infos["depth"] != None:
                     with torch.no_grad():
                         scandots_latent = self.alg.actor_critic.actor.infer_scandots_latent(obs)
                     scandots_latent_buffer.append(scandots_latent)
                     obs_prop_depth = obs[:, :self.env.cfg.env.n_proprio].clone()
-                    obs_prop_depth[:, 6:8] = 0
-                    depth_latent_and_yaw = self.alg.depth_encoder(infos["depth"].clone(), obs_prop_depth)  # clone is crucial to avoid in-place operation
+                    obs_prop_depth[:, 5] = 0
+                    depth_latent = self.alg.depth_encoder(infos["depth"].clone(), obs_prop_depth)  # clone is crucial to avoid in-place operation
+                    # depth_latent_and_yaw = self.alg.depth_encoder(infos["depth"].clone(), obs_prop_depth)  # clone is crucial to avoid in-place operation
                     
-                    depth_latent = depth_latent_and_yaw[:, :-2]
-                    yaw = 1.5*depth_latent_and_yaw[:, -2:]
+                    # depth_latent = depth_latent_and_yaw[:, :-2]
+                    # yaw = 1.5*depth_latent_and_yaw[:, -2:]
                     
                     depth_latent_buffer.append(depth_latent)
-                    yaw_buffer_student.append(yaw)
-                    yaw_buffer_teacher.append(obs[:, 6:8])
+                    # yaw_buffer_student.append(yaw)
+                    # yaw_buffer_teacher.append(obs[:, 6:8])
                 
                 with torch.no_grad():
                     actions_teacher = self.alg.actor_critic.act_inference(obs, hist_encoding=True, scandots_latent=None)
                     actions_teacher_buffer.append(actions_teacher)
 
                 obs_student = obs.clone()
+                obs_student[:, 5] = 0  # mask delta_z to be 5
                 # obs_student[:, 6:8] = yaw.detach()
-                obs_student[infos["delta_yaw_ok"], 6:8] = yaw.detach()[infos["delta_yaw_ok"]]
-                delta_yaw_ok_buffer.append(torch.nonzero(infos["delta_yaw_ok"]).size(0) / infos["delta_yaw_ok"].numel())
+                # obs_student[infos["delta_yaw_ok"], 6:8] = yaw.detach()[infos["delta_yaw_ok"]]
+                # delta_yaw_ok_buffer.append(torch.nonzero(infos["delta_yaw_ok"]).size(0) / infos["delta_yaw_ok"].numel())
                 actions_student = self.alg.depth_actor(obs_student, hist_encoding=True, scandots_latent=depth_latent)
                 actions_student_buffer.append(actions_student)
 
@@ -296,7 +298,7 @@ class OnPolicyRunner:
             collection_time = stop - start
             start = stop
 
-            delta_yaw_ok_percentage = sum(delta_yaw_ok_buffer) / len(delta_yaw_ok_buffer)
+            # delta_yaw_ok_percentage = sum(delta_yaw_ok_buffer) / len(delta_yaw_ok_buffer)
             scandots_latent_buffer = torch.cat(scandots_latent_buffer, dim=0)
             depth_latent_buffer = torch.cat(depth_latent_buffer, dim=0)
             depth_encoder_loss = 0
@@ -304,9 +306,9 @@ class OnPolicyRunner:
 
             actions_teacher_buffer = torch.cat(actions_teacher_buffer, dim=0)
             actions_student_buffer = torch.cat(actions_student_buffer, dim=0)
-            yaw_buffer_student = torch.cat(yaw_buffer_student, dim=0)
-            yaw_buffer_teacher = torch.cat(yaw_buffer_teacher, dim=0)
-            depth_actor_loss, yaw_loss = self.alg.update_depth_actor(actions_student_buffer, actions_teacher_buffer, yaw_buffer_student, yaw_buffer_teacher)
+            # yaw_buffer_student = torch.cat(yaw_buffer_student, dim=0)
+            # yaw_buffer_teacher = torch.cat(yaw_buffer_teacher, dim=0)
+            depth_actor_loss = self.alg.update_depth_actor(actions_student_buffer, actions_teacher_buffer)
 
             # depth_encoder_loss, depth_actor_loss = self.alg.update_depth_both(depth_latent_buffer, scandots_latent_buffer, actions_student_buffer, actions_teacher_buffer)
             stop = time.time()
@@ -345,10 +347,10 @@ class OnPolicyRunner:
         mean_std = self.alg.actor_critic.std.mean()
         fps = int(self.num_steps_per_env * self.env.num_envs / (locs['collection_time'] + locs['learn_time']))
 
-        wandb_dict['Loss_depth/delta_yaw_ok_percent'] = locs['delta_yaw_ok_percentage']
+        # wandb_dict['Loss_depth/delta_yaw_ok_percent'] = locs['delta_yaw_ok_percentage']
         wandb_dict['Loss_depth/depth_encoder'] = locs['depth_encoder_loss']
         wandb_dict['Loss_depth/depth_actor'] = locs['depth_actor_loss']
-        wandb_dict['Loss_depth/yaw'] = locs['yaw_loss']
+        # wandb_dict['Loss_depth/yaw'] = locs['yaw_loss']
         wandb_dict['Policy/mean_noise_std'] = mean_std.item()
         wandb_dict['Perf/total_fps'] = fps
         wandb_dict['Perf/collection time'] = locs['collection_time']
@@ -370,9 +372,9 @@ class OnPolicyRunner:
                           f"""{'Mean reward (total):':>{pad}} {statistics.mean(locs['rewbuffer']):.2f}\n"""
                           f"""{'Mean episode length:':>{pad}} {statistics.mean(locs['lenbuffer']):.2f}\n"""
                           f"""{'Depth encoder loss:':>{pad}} {locs['depth_encoder_loss']:.4f}\n"""
-                          f"""{'Depth actor loss:':>{pad}} {locs['depth_actor_loss']:.4f}\n"""
-                          f"""{'Yaw loss:':>{pad}} {locs['yaw_loss']:.4f}\n"""
-                          f"""{'Delta yaw ok percentage:':>{pad}} {locs['delta_yaw_ok_percentage']:.4f}\n""")
+                          f"""{'Depth actor loss:':>{pad}} {locs['depth_actor_loss']:.4f}\n""")
+                        #   f"""{'Yaw loss:':>{pad}} {locs['yaw_loss']:.4f}\n"""
+                        #   f"""{'Delta yaw ok percentage:':>{pad}} {locs['delta_yaw_ok_percentage']:.4f}\n""")
         else:
             log_string = (f"""{'#' * width}\n""")
 
