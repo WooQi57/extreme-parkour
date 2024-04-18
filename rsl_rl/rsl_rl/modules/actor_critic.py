@@ -175,9 +175,11 @@ class Actor(nn.Module):
             else:
                 latent = self.infer_priv_latent(obs)
             backbone_input = torch.cat([obs_prop_scan, obs_priv_explicit, latent], dim=1)
-            backbone_output0 = self.actor_backbone0(backbone_input)
-            backbone_output1 = self.actor_backbone1(backbone_input)
-            backbone_output = (obs_prop_scan[:,0] == 0).view(-1,1)*backbone_output0 + (obs_prop_scan[:,0] == 1).view(-1,1)*backbone_output1
+            env_class = obs_prop_scan[:,0]
+            num_env_class_0 = (env_class == 0).sum()
+            backbone_output0 = self.actor_backbone0(backbone_input[:num_env_class_0])
+            backbone_output1 = self.actor_backbone1(backbone_input[num_env_class_0:])
+            backbone_output = torch.cat([backbone_output0, backbone_output1], dim=0)
             
             # backbone_output = self.actor_backbone(backbone_input)
             return backbone_output
@@ -197,10 +199,12 @@ class Actor(nn.Module):
             else:
                 latent = self.infer_priv_latent(obs)
             backbone_input = torch.cat([obs_prop_scan, obs_priv_explicit, latent], dim=1)
-            backbone_output0 = self.actor_backbone0(backbone_input)
-            backbone_output1 = self.actor_backbone1(backbone_input)
-            backbone_output = (obs_prop_scan[:,0] == 0).view(-1,1)*backbone_output0 + (obs_prop_scan[:,0] == 1).view(-1,1)*backbone_output1
-
+            env_class = obs_prop_scan[:,0]
+            num_env_class_0 = (env_class == 0).sum()
+            backbone_output0 = self.actor_backbone0(backbone_input[:num_env_class_0])
+            backbone_output1 = self.actor_backbone1(backbone_input[num_env_class_0:])
+            backbone_output = torch.cat([backbone_output0, backbone_output1], dim=0)
+            
             # backbone_output = self.actor_backbone(backbone_input)
             return backbone_output
     
@@ -252,7 +256,8 @@ class ActorCriticRMA(nn.Module):
             else:
                 critic_layers.append(nn.Linear(critic_hidden_dims[l], critic_hidden_dims[l + 1]))
                 critic_layers.append(activation)
-        self.critic = nn.Sequential(*critic_layers)
+        self.critic0 = nn.Sequential(*critic_layers)
+        self.critic1 = nn.Sequential(*critic_layers)
 
         # Action noise
         self.std = nn.Parameter(init_noise_std * torch.ones(num_actions))
@@ -308,7 +313,12 @@ class ActorCriticRMA(nn.Module):
             return actions_mean, latent_hist, latent_priv
 
     def evaluate(self, critic_observations, **kwargs):
-        value = self.critic(critic_observations)
+        env_class = critic_observations[:,0]
+        num_env_class_0 = (env_class == 0).sum()
+        value0 = self.critic0(critic_observations[:num_env_class_0])
+        value1 = self.critic1(critic_observations[num_env_class_0:])
+        value = torch.cat([value0, value1], dim=0)
+
         return value
     
     def reset_std(self, std, num_actions, device):

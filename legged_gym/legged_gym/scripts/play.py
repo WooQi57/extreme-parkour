@@ -170,7 +170,7 @@ def play(args):
         #  -0.2128,  0.7953,  0.3242,  0.2088,  0.2267,  0.1037,  0.2565, -0.0339,
         #  -0.9887,  0.2621,  0.0845, -0.7242, -0.3818,  0.0784,  0.1277, -0.7304,
         #   0.0136,  0.1669,  0.0916, -0.1428, -0.9189,  0.8611,  0.1624, -0.2422],device=env.device)
-
+       
             if hasattr(ppo_runner.alg, "depth_actor"):
                 actions = ppo_runner.alg.depth_actor(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
             else:
@@ -186,33 +186,33 @@ def play(args):
                         wait_for_page_load=True)
             web_viewer.write_vid()
 
-        # store data for plot
-        cur_time = env.episode_length_buf[env.lookat_id].item() / 50
-        time_hist.append(cur_time)
-        angle_hist.append(env.target_angles[env.lookat_id].tolist())
-        dof_hist.append(env.dof_pos[env.lookat_id].tolist())
-        # action_hist.append(actions[env.lookat_id].tolist())
+        # # store data for plot
+        # cur_time = env.episode_length_buf[env.lookat_id].item() / 50
+        # time_hist.append(cur_time)
+        # angle_hist.append(env.target_angles[env.lookat_id].tolist())
+        # dof_hist.append(env.dof_pos[env.lookat_id].tolist())
+        # # action_hist.append(actions[env.lookat_id].tolist())
 
         # id = env.lookat_id
-        if cur_time == 0 or i == 2*int(env.max_episode_length)-1:  #or (cur_time % env_cfg.commands.resampling_time)==0 
-            time_hist = np.array(time_hist[:-3])
-            angle_hist = np.array(angle_hist[:-3])
-            dof_hist = np.array(dof_hist[:-3])
-            # action_hist = np.array(action_hist[:-3])
-            for f in range(4):
-                fig,axs = plt.subplots(3,1,sharex=True)
-                for j in range(3):
-                    axs[j].plot(time_hist, angle_hist[:,j+3*f], label=f'cmd{j}')
-                    axs[j].plot(time_hist[:-1], dof_hist[1:,j+3*f], '--', label=f'real{j}')  # dof observe is actually one step earlier
-                    axs[j].legend()
-                    axs[j].grid(True, which='both', axis='both')
-                    axs[j].minorticks_on()
-                plt.tight_layout()
+        # if cur_time == 0 or i == 2*int(env.max_episode_length)-1:  #or (cur_time % env_cfg.commands.resampling_time)==0 
+        #     time_hist = np.array(time_hist[:-3])
+        #     angle_hist = np.array(angle_hist[:-3])
+        #     dof_hist = np.array(dof_hist[:-3])
+        #     # action_hist = np.array(action_hist[:-3])
+        #     for f in range(4):
+        #         fig,axs = plt.subplots(3,1,sharex=True)
+        #         for j in range(3):
+        #             axs[j].plot(time_hist, angle_hist[:,j+3*f], label=f'cmd{j}')
+        #             axs[j].plot(time_hist[:-1], dof_hist[1:,j+3*f], '--', label=f'real{j}')  # dof observe is actually one step earlier
+        #             axs[j].legend()
+        #             axs[j].grid(True, which='both', axis='both')
+        #             axs[j].minorticks_on()
+        #         plt.tight_layout()
                 # plt.savefig(f'../figs/cmd_following_{i}_{f}.png')
 
-            time_hist = []
-            angle_hist = []
-            dof_hist = []
+            # time_hist = []
+            # angle_hist = []
+            # dof_hist = []
 
 if __name__ == '__main__':
     EXPORT_POLICY = False

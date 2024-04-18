@@ -138,7 +138,6 @@ class Go2(BaseTask):
         clip_actions = self.cfg.normalization.clip_actions / self.cfg.control.action_scale
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
         self.render()
-
         for _ in range(self.cfg.control.decimation):
             actions_tmp = self.actions.clone()
             actions = torch.cat((actions_tmp,actions_tmp[:,-1:]),dim=1)  # repeat last element to control both fingers
@@ -376,7 +375,9 @@ class Go2(BaseTask):
         # fill extras
         self.extras["episode"] = {}
         for key in self.episode_sums.keys():
-            self.extras["episode"]['rew_' + key] = torch.mean(self.episode_sums[key][env_ids]) / self.max_episode_length_s
+            # self.extras["episode"]['rew_' + key] = torch.mean(self.episode_sums[key][env_ids]) / self.max_episode_length_s
+            self.extras["episode"]['rew_flat_' + key] = torch.sum(self.episode_sums[key][env_ids]*(self.env_class[env_ids]==0)) / self.max_episode_length_s
+            self.extras["episode"]['rew_step_' + key] = torch.mean(self.episode_sums[key][env_ids]*(self.env_class[env_ids]!=0)) / self.max_episode_length_s
             self.episode_sums[key][env_ids] = 0.
         self.episode_length_buf[env_ids] = 0
 
