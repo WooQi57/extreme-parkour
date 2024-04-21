@@ -139,24 +139,40 @@ class Actor(nn.Module):
             self.scan_encoder = nn.Identity()
             self.scan_encoder_output_dim = num_scan
         
-        actor_layers = []
-        actor_layers.append(nn.Linear(num_prop+
+        actor_layers0 = []
+        actor_layers0.append(nn.Linear(num_prop+
                                       self.scan_encoder_output_dim+
                                       num_priv_explicit+
                                       priv_encoder_output_dim, 
                                       actor_hidden_dims[0]))
-        actor_layers.append(activation)
+        actor_layers0.append(activation)
         for l in range(len(actor_hidden_dims)):
             if l == len(actor_hidden_dims) - 1:
-                actor_layers.append(nn.Linear(actor_hidden_dims[l], num_actions))
+                actor_layers0.append(nn.Linear(actor_hidden_dims[l], num_actions))
             else:
-                actor_layers.append(nn.Linear(actor_hidden_dims[l], actor_hidden_dims[l + 1]))
-                actor_layers.append(activation)
+                actor_layers0.append(nn.Linear(actor_hidden_dims[l], actor_hidden_dims[l + 1]))
+                actor_layers0.append(activation)
         if tanh_encoder_output:
-            actor_layers.append(nn.Tanh())
+            actor_layers0.append(nn.Tanh())
+
+        actor_layers1 = []
+        actor_layers1.append(nn.Linear(num_prop+
+                                      self.scan_encoder_output_dim+
+                                      num_priv_explicit+
+                                      priv_encoder_output_dim, 
+                                      actor_hidden_dims[0]))
+        actor_layers1.append(activation)
+        for l in range(len(actor_hidden_dims)):
+            if l == len(actor_hidden_dims) - 1:
+                actor_layers1.append(nn.Linear(actor_hidden_dims[l], num_actions))
+            else:
+                actor_layers1.append(nn.Linear(actor_hidden_dims[l], actor_hidden_dims[l + 1]))
+                actor_layers1.append(activation)
+        if tanh_encoder_output:
+            actor_layers1.append(nn.Tanh())
         # self.actor_backbone = nn.Sequential(*actor_layers)
-        self.actor_backbone0 = nn.Sequential(*actor_layers)
-        self.actor_backbone1 = nn.Sequential(*actor_layers)
+        self.actor_backbone0 = nn.Sequential(*actor_layers0)
+        self.actor_backbone1 = nn.Sequential(*actor_layers1)
 
     def forward(self, obs, hist_encoding: bool, eval=False, scandots_latent=None):
         if not eval:
@@ -175,11 +191,15 @@ class Actor(nn.Module):
             else:
                 latent = self.infer_priv_latent(obs)
             backbone_input = torch.cat([obs_prop_scan, obs_priv_explicit, latent], dim=1)
-            env_class = obs_prop_scan[:,0]
-            num_env_class_0 = (env_class == 0).sum()
-            backbone_output0 = self.actor_backbone0(backbone_input[:num_env_class_0])
-            backbone_output1 = self.actor_backbone1(backbone_input[num_env_class_0:])
+
+            flat_obs = backbone_input[backbone_input[:, 0] == 0]
+            step_obs = backbone_input[backbone_input[:, 0] == 1]
+            backbone_output0 = self.actor_backbone0(flat_obs)
+            backbone_output1 = self.actor_backbone1(step_obs)
+
             backbone_output = torch.cat([backbone_output0, backbone_output1], dim=0)
+            backbone_output[backbone_input[:, 0] == 0, :] = backbone_output0
+            backbone_output[backbone_input[:, 0] == 1, :] = backbone_output1
             
             # backbone_output = self.actor_backbone(backbone_input)
             return backbone_output
@@ -199,11 +219,15 @@ class Actor(nn.Module):
             else:
                 latent = self.infer_priv_latent(obs)
             backbone_input = torch.cat([obs_prop_scan, obs_priv_explicit, latent], dim=1)
-            env_class = obs_prop_scan[:,0]
-            num_env_class_0 = (env_class == 0).sum()
-            backbone_output0 = self.actor_backbone0(backbone_input[:num_env_class_0])
-            backbone_output1 = self.actor_backbone1(backbone_input[num_env_class_0:])
+            
+            flat_obs = backbone_input[backbone_input[:, 0] == 0]
+            step_obs = backbone_input[backbone_input[:, 0] == 1]
+            backbone_output0 = self.actor_backbone0(flat_obs)
+            backbone_output1 = self.actor_backbone1(step_obs)
+
             backbone_output = torch.cat([backbone_output0, backbone_output1], dim=0)
+            backbone_output[backbone_input[:, 0] == 0, :] = backbone_output0
+            backbone_output[backbone_input[:, 0] == 1, :] = backbone_output1
             
             # backbone_output = self.actor_backbone(backbone_input)
             return backbone_output
@@ -247,17 +271,29 @@ class ActorCriticRMA(nn.Module):
         
 
         # Value function
-        critic_layers = []
-        critic_layers.append(nn.Linear(num_critic_obs, critic_hidden_dims[0]))
-        critic_layers.append(activation)
+        critic_layers0 = []
+        critic_layers0.append(nn.Linear(num_critic_obs, critic_hidden_dims[0]))
+        critic_layers0.append(activation)
         for l in range(len(critic_hidden_dims)):
             if l == len(critic_hidden_dims) - 1:
-                critic_layers.append(nn.Linear(critic_hidden_dims[l], 1))
+                critic_layers0.append(nn.Linear(critic_hidden_dims[l], 1))
             else:
-                critic_layers.append(nn.Linear(critic_hidden_dims[l], critic_hidden_dims[l + 1]))
-                critic_layers.append(activation)
-        self.critic0 = nn.Sequential(*critic_layers)
-        self.critic1 = nn.Sequential(*critic_layers)
+                critic_layers0.append(nn.Linear(critic_hidden_dims[l], critic_hidden_dims[l + 1]))
+                critic_layers0.append(activation)
+
+        critic_layers1 = []
+        critic_layers1.append(nn.Linear(num_critic_obs, critic_hidden_dims[0]))
+        critic_layers1.append(activation)
+        for l in range(len(critic_hidden_dims)):
+            if l == len(critic_hidden_dims) - 1:
+                critic_layers1.append(nn.Linear(critic_hidden_dims[l], 1))
+            else:
+                critic_layers1.append(nn.Linear(critic_hidden_dims[l], critic_hidden_dims[l + 1]))
+                critic_layers1.append(activation)
+        
+        # self.critic = nn.Sequential(*critic_layers0)
+        self.critic0 = nn.Sequential(*critic_layers0)
+        self.critic1 = nn.Sequential(*critic_layers1)
 
         # Action noise
         self.std = nn.Parameter(init_noise_std * torch.ones(num_actions))
@@ -313,12 +349,17 @@ class ActorCriticRMA(nn.Module):
             return actions_mean, latent_hist, latent_priv
 
     def evaluate(self, critic_observations, **kwargs):
-        env_class = critic_observations[:,0]
-        num_env_class_0 = (env_class == 0).sum()
-        value0 = self.critic0(critic_observations[:num_env_class_0])
-        value1 = self.critic1(critic_observations[num_env_class_0:])
-        value = torch.cat([value0, value1], dim=0)
+        flat_obs = critic_observations[critic_observations[:, 0] == 0]
+        step_obs = critic_observations[critic_observations[:, 0] == 1]
+        value0 = self.critic0(flat_obs)
+        value1 = self.critic1(step_obs)
 
+        value = torch.cat([value0, value1], dim=0)
+        value[critic_observations[:, 0] == 0, :] = value0
+        value[critic_observations[:, 0] == 1, :] = value1
+        
+
+        # value = self.critic(critic_observations)
         return value
     
     def reset_std(self, std, num_actions, device):

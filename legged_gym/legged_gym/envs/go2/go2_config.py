@@ -183,8 +183,8 @@ class Go2RoughCfg( LeggedRobotCfg ):
 
     class terrain( LeggedRobotCfg.terrain):
         terrain_dict = {
-                "parkour_flat": 0.5,
-                "parkour_step": 0.5,}
+                "parkour_flat": 1.0,
+                "parkour_step": 0.0,}
         terrain_proportions = list(terrain_dict.values())
         y_range = [-0.1, 0.1]
         cur_threshold_hi = 9

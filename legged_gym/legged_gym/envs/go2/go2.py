@@ -382,9 +382,9 @@ class Go2(BaseTask):
         self.episode_length_buf[env_ids] = 0
 
         # log additional curriculum info
-        if self.cfg.terrain.curriculum:
-            self.extras["episode"]["terrain_level"] = torch.mean(self.terrain_levels[self.env_class!=0].float())
-            self.extras["episode"]["terrain_level_max"] = torch.max(self.terrain_levels[self.env_class!=0].float())
+        # if self.cfg.terrain.curriculum:
+        #     self.extras["episode"]["terrain_level"] = torch.mean(self.terrain_levels[self.env_class!=0].float())
+            # self.extras["episode"]["terrain_level_max"] = torch.max(self.terrain_levels[self.env_class!=0].float())
         if self.cfg.commands.curriculum:
             self.extras["episode"]["max_command_x"] = self.command_ranges["lin_vel_x"][1]
         # send timeout info to the algorithm
@@ -637,6 +637,7 @@ class Go2(BaseTask):
         # self.commands[env_ids, 0] *= (self.env_class[env_ids] != 0)*torch.sign(self.commands[env_ids, 0]) + (self.env_class[env_ids] == 0) # positive for parkour
         self.commands[env_ids, 1:] *= (self.env_class[env_ids] == 0).unsqueeze(1)
         # self.commands*=0
+        # self.commands[:,0]=1.
         # print(f"{self.commands=}")
 
     def _compute_torques(self, actions):

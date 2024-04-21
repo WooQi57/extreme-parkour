@@ -69,6 +69,7 @@ class WebViewer:
         self._event_stream = threading.Event()
         self._event_stream_depth = threading.Event()
         self.vid_writer = imageio.get_writer(output_video_file, fps=50)
+        self.depth_vid_writer = imageio.get_writer(output_video_file[:-4]+'_depth.mp4', fps=50)
 
         # start server
         self._thread = threading.Thread(target=lambda: \
@@ -299,7 +300,7 @@ class WebViewer:
         if self._env.cfg.depth.use_camera:
             self._image_depth = self._env.depth_buffer[self._camera_id, -1].cpu().numpy() + 0.5
             self._image_depth = np.uint8(255 * self._image_depth)
-        
+
         root_pos = self._env.root_states[self._camera_id, :3].cpu().numpy()
         cam_pos = root_pos + self.cam_pos_rel
         self._gym.set_camera_location(self._cameras[self._camera_id], self._envs[self._camera_id], gymapi.Vec3(*cam_pos), gymapi.Vec3(*root_pos))
@@ -313,6 +314,8 @@ class WebViewer:
 
     def write_vid(self):
         self.vid_writer.append_data(self._image)
+        if self._env.cfg.depth.use_camera:
+            self.depth_vid_writer.append_data(self._image_depth)
 
 def ik(jacobian_end_effector: torch.Tensor,
        current_position: torch.Tensor,

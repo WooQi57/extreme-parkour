@@ -1,15 +1,15 @@
 #!/bin/bash
 #
-#SBATCH --job-name="100-18-50"
+#SBATCH --job-name="101-18-50"
 #SBATCH --partition=iris-hi
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/100-18-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/101-18-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
 #SBATCH --time=48:00:00 # Max job length is 2 day
 #SBATCH --nodes=1 # Only use one node (machine)
 #SBATCH --mem=32G
-#SBATCH --exclude=iris-hp-z8,iris1,iris2,iris3,iris4
+#SBATCH --exclude=iris-hp-z8,iris1,iris2,iris3,iris4,iris9,iris10
 
 ###SBATCH --mem-per-cpu=2G
 
@@ -31,6 +31,8 @@ echo "
 --------------------------------------------
 --------------------------------------------
 task description:
+    "parkour_flat": 1.0,
+    "parkour_step": 0.0,}
     use two actors
     from scratch again
 
@@ -82,7 +84,7 @@ task description:
 --------------------------------------------
 --------------------------------------------" 
 
-srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go2 --exptid 100-18-2actors --device cuda:0
+srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go2 --exptid 101-18-2actors --device cuda:0
 '
 
 # done
