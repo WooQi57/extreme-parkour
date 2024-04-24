@@ -158,7 +158,7 @@ class Go2RoughCfg( LeggedRobotCfg ):
             tracking_lin_vel = 1.5 # increase cmd following 1.5
             tracking_yaw_vel = 1.5  # 0.5
             tracking_z = 0.05*0
-            lin_vel_z_parkour = 0.5
+            lin_vel_z_parkour = 0.5*0
             tracking_pitch = 1.5 #1.
             terrain_level = 0.1
 
@@ -183,8 +183,8 @@ class Go2RoughCfg( LeggedRobotCfg ):
 
     class terrain( LeggedRobotCfg.terrain):
         terrain_dict = {
-                "parkour_flat": 1.0,
-                "parkour_step": 0.0,}
+                "parkour_flat": 0.5,
+                "parkour_step": 0.5,}
         terrain_proportions = list(terrain_dict.values())
         y_range = [-0.1, 0.1]
         cur_threshold_hi = 9

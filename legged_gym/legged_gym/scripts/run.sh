@@ -1,15 +1,15 @@
 #!/bin/bash
 #
-#SBATCH --job-name="101-18-50"
+#SBATCH --job-name="104-18-50"
 #SBATCH --partition=iris-hi
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/101-18-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/104-18-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
 #SBATCH --time=48:00:00 # Max job length is 2 day
 #SBATCH --nodes=1 # Only use one node (machine)
 #SBATCH --mem=32G
-#SBATCH --exclude=iris-hp-z8,iris1,iris2,iris3,iris4,iris9,iris10
+#SBATCH --exclude=iris-hp-z8,iris1,iris2,iris3,iris4
 
 ###SBATCH --mem-per-cpu=2G
 
@@ -26,17 +26,15 @@ echo "working directory = "$SLURM_SUBMIT_DIR
 nvidia-smi
 
 # sample process
-# srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python /iris/u/wuqi23/doggybot/test.py'
+srun bash -c '/iris/u/wuqi23/anaconda3/envs/doggy/bin/python /iris/u/wuqi23/doggybot/test.py'
 echo "
 --------------------------------------------
 --------------------------------------------
 task description:
-    "parkour_flat": 1.0,
-    "parkour_step": 0.0,}
-    use two actors
+    no env class obs
+    don't use two actors
     from scratch again
-
-
+    no vz
     cur_threshold_lo = 6.5
     step x range should be greater than 0.5
     step_height=0.1 + 0.45*difficulty
@@ -84,7 +82,7 @@ task description:
 --------------------------------------------
 --------------------------------------------" 
 
-srun bash -c '/sailhome/wuqi23/anaconda3/envs/parkour/bin/python train.py  --task go2 --exptid 101-18-2actors --device cuda:0
+srun bash -c '/iris/u/wuqi23/anaconda3/envs/doggy/bin/python train.py  --task go2 --exptid 104-18-2actors --device cuda:0
 '
 
 # done

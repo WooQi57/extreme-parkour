@@ -37,7 +37,7 @@ from torch.distributions import Normal
 from torch.nn.modules import rnn
 from torch.nn.modules.activation import ReLU
 
-
+USE_2AC = True
 class StateHistoryEncoder(nn.Module):
     def __init__(self, activation_fn, input_size, tsteps, output_size, tanh_encoder_output=False):
         # self.device = device
@@ -138,7 +138,7 @@ class Actor(nn.Module):
         else:
             self.scan_encoder = nn.Identity()
             self.scan_encoder_output_dim = num_scan
-        
+
         actor_layers0 = []
         actor_layers0.append(nn.Linear(num_prop+
                                       self.scan_encoder_output_dim+
@@ -155,24 +155,27 @@ class Actor(nn.Module):
         if tanh_encoder_output:
             actor_layers0.append(nn.Tanh())
 
-        actor_layers1 = []
-        actor_layers1.append(nn.Linear(num_prop+
-                                      self.scan_encoder_output_dim+
-                                      num_priv_explicit+
-                                      priv_encoder_output_dim, 
-                                      actor_hidden_dims[0]))
-        actor_layers1.append(activation)
-        for l in range(len(actor_hidden_dims)):
-            if l == len(actor_hidden_dims) - 1:
-                actor_layers1.append(nn.Linear(actor_hidden_dims[l], num_actions))
-            else:
-                actor_layers1.append(nn.Linear(actor_hidden_dims[l], actor_hidden_dims[l + 1]))
-                actor_layers1.append(activation)
-        if tanh_encoder_output:
-            actor_layers1.append(nn.Tanh())
-        # self.actor_backbone = nn.Sequential(*actor_layers)
-        self.actor_backbone0 = nn.Sequential(*actor_layers0)
-        self.actor_backbone1 = nn.Sequential(*actor_layers1)
+        if USE_2AC:
+            actor_layers1 = []
+            actor_layers1.append(nn.Linear(num_prop+
+                                        self.scan_encoder_output_dim+
+                                        num_priv_explicit+
+                                        priv_encoder_output_dim, 
+                                        actor_hidden_dims[0]))
+            actor_layers1.append(activation)
+            for l in range(len(actor_hidden_dims)):
+                if l == len(actor_hidden_dims) - 1:
+                    actor_layers1.append(nn.Linear(actor_hidden_dims[l], num_actions))
+                else:
+                    actor_layers1.append(nn.Linear(actor_hidden_dims[l], actor_hidden_dims[l + 1]))
+                    actor_layers1.append(activation)
+            if tanh_encoder_output:
+                actor_layers1.append(nn.Tanh())
+            # self.actor_backbone = nn.Sequential(*actor_layers)
+            self.actor_backbone0 = nn.Sequential(*actor_layers0)
+            self.actor_backbone1 = nn.Sequential(*actor_layers1)
+        else:
+            self.actor_backbone0 = nn.Sequential(*actor_layers0)
 
     def forward(self, obs, hist_encoding: bool, eval=False, scandots_latent=None):
         if not eval:
@@ -191,17 +194,18 @@ class Actor(nn.Module):
             else:
                 latent = self.infer_priv_latent(obs)
             backbone_input = torch.cat([obs_prop_scan, obs_priv_explicit, latent], dim=1)
+            if USE_2AC:
+                flat_obs = backbone_input[backbone_input[:, 0] == 0]
+                step_obs = backbone_input[backbone_input[:, 0] == 1]
+                backbone_output0 = self.actor_backbone0(flat_obs)
+                backbone_output1 = self.actor_backbone1(step_obs)
 
-            flat_obs = backbone_input[backbone_input[:, 0] == 0]
-            step_obs = backbone_input[backbone_input[:, 0] == 1]
-            backbone_output0 = self.actor_backbone0(flat_obs)
-            backbone_output1 = self.actor_backbone1(step_obs)
-
-            backbone_output = torch.cat([backbone_output0, backbone_output1], dim=0)
-            backbone_output[backbone_input[:, 0] == 0, :] = backbone_output0
-            backbone_output[backbone_input[:, 0] == 1, :] = backbone_output1
-            
-            # backbone_output = self.actor_backbone(backbone_input)
+                backbone_output = torch.cat([backbone_output0, backbone_output1], dim=0)
+                backbone_output[backbone_input[:, 0] == 0, :] = backbone_output0
+                backbone_output[backbone_input[:, 0] == 1, :] = backbone_output1
+                # print(f"{backbone_input=}\n{flat_obs=}\n{step_obs=}\n{backbone_output0=}\n{backbone_output1=}\n{backbone_output=}")
+            else:
+                backbone_output = self.actor_backbone0(backbone_input)
             return backbone_output
         else:
             if self.if_scan_encode:
@@ -219,17 +223,18 @@ class Actor(nn.Module):
             else:
                 latent = self.infer_priv_latent(obs)
             backbone_input = torch.cat([obs_prop_scan, obs_priv_explicit, latent], dim=1)
-            
-            flat_obs = backbone_input[backbone_input[:, 0] == 0]
-            step_obs = backbone_input[backbone_input[:, 0] == 1]
-            backbone_output0 = self.actor_backbone0(flat_obs)
-            backbone_output1 = self.actor_backbone1(step_obs)
+            if USE_2AC:
+                flat_obs = backbone_input[backbone_input[:, 0] == 0]
+                step_obs = backbone_input[backbone_input[:, 0] == 1]
+                backbone_output0 = self.actor_backbone0(flat_obs)
+                backbone_output1 = self.actor_backbone1(step_obs)
 
-            backbone_output = torch.cat([backbone_output0, backbone_output1], dim=0)
-            backbone_output[backbone_input[:, 0] == 0, :] = backbone_output0
-            backbone_output[backbone_input[:, 0] == 1, :] = backbone_output1
-            
-            # backbone_output = self.actor_backbone(backbone_input)
+                backbone_output = torch.cat([backbone_output0, backbone_output1], dim=0)
+                backbone_output[backbone_input[:, 0] == 0, :] = backbone_output0
+                backbone_output[backbone_input[:, 0] == 1, :] = backbone_output1
+                # print(f"{backbone_input=}\n{flat_obs=}\n{step_obs=}\n{backbone_output0=}\n{backbone_output1=}\n{backbone_output=}")
+            else:
+                backbone_output = self.actor_backbone0(backbone_input)
             return backbone_output
     
     def infer_priv_latent(self, obs):
@@ -280,20 +285,19 @@ class ActorCriticRMA(nn.Module):
             else:
                 critic_layers0.append(nn.Linear(critic_hidden_dims[l], critic_hidden_dims[l + 1]))
                 critic_layers0.append(activation)
-
-        critic_layers1 = []
-        critic_layers1.append(nn.Linear(num_critic_obs, critic_hidden_dims[0]))
-        critic_layers1.append(activation)
-        for l in range(len(critic_hidden_dims)):
-            if l == len(critic_hidden_dims) - 1:
-                critic_layers1.append(nn.Linear(critic_hidden_dims[l], 1))
-            else:
-                critic_layers1.append(nn.Linear(critic_hidden_dims[l], critic_hidden_dims[l + 1]))
-                critic_layers1.append(activation)
-        
-        # self.critic = nn.Sequential(*critic_layers0)
         self.critic0 = nn.Sequential(*critic_layers0)
-        self.critic1 = nn.Sequential(*critic_layers1)
+
+        if USE_2AC:
+            critic_layers1 = []
+            critic_layers1.append(nn.Linear(num_critic_obs, critic_hidden_dims[0]))
+            critic_layers1.append(activation)
+            for l in range(len(critic_hidden_dims)):
+                if l == len(critic_hidden_dims) - 1:
+                    critic_layers1.append(nn.Linear(critic_hidden_dims[l], 1))
+                else:
+                    critic_layers1.append(nn.Linear(critic_hidden_dims[l], critic_hidden_dims[l + 1]))
+                    critic_layers1.append(activation)
+            self.critic1 = nn.Sequential(*critic_layers1)
 
         # Action noise
         self.std = nn.Parameter(init_noise_std * torch.ones(num_actions))
@@ -349,17 +353,18 @@ class ActorCriticRMA(nn.Module):
             return actions_mean, latent_hist, latent_priv
 
     def evaluate(self, critic_observations, **kwargs):
-        flat_obs = critic_observations[critic_observations[:, 0] == 0]
-        step_obs = critic_observations[critic_observations[:, 0] == 1]
-        value0 = self.critic0(flat_obs)
-        value1 = self.critic1(step_obs)
+        if USE_2AC:
+            flat_obs = critic_observations[critic_observations[:, 0] == 0]
+            step_obs = critic_observations[critic_observations[:, 0] == 1]
+            value0 = self.critic0(flat_obs)
+            value1 = self.critic1(step_obs)
 
-        value = torch.cat([value0, value1], dim=0)
-        value[critic_observations[:, 0] == 0, :] = value0
-        value[critic_observations[:, 0] == 1, :] = value1
-        
-
-        # value = self.critic(critic_observations)
+            value = torch.cat([value0, value1], dim=0)
+            value[critic_observations[:, 0] == 0, :] = value0
+            value[critic_observations[:, 0] == 1, :] = value1
+        else:
+            value = self.critic0(critic_observations)
+            # print(f"{critic_observations=},\n{flat_obs=},\n{step_obs=}\n{value0=} \n{value1=}\n{value=}")
         return value
     
     def reset_std(self, std, num_actions, device):
