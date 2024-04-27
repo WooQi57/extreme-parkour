@@ -138,6 +138,7 @@ class Go2(BaseTask):
         clip_actions = self.cfg.normalization.clip_actions / self.cfg.control.action_scale
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
         self.render()
+
         for _ in range(self.cfg.control.decimation):
             actions_tmp = self.actions.clone()
             actions = torch.cat((actions_tmp,actions_tmp[:,-1:]),dim=1)  # repeat last element to control both fingers
@@ -337,15 +338,18 @@ class Go2(BaseTask):
         if len(env_ids) == 0:
             return
         # update curriculum
-        # dis_to_origin = torch.norm(self.root_states[env_ids, :2] - self.env_origins[env_ids, :2], dim=1)
-        # threshold = self.commands[env_ids, 0] * self.cfg.env.episode_length_s
-        # move_up =dis_to_origin > self.cfg.terrain.cur_threshold_hi
-        # move_down = dis_to_origin < self.cfg.terrain.cur_threshold_lo
+        goal_lengths = self.terrain_goal_length[self.terrain_levels,self.terrain_types]
+        th_hi = goal_lengths[env_ids]*self.cfg.terrain.cur_threshold_hi
+        th_lo = goal_lengths[env_ids]*self.cfg.terrain.cur_threshold_lo
+        dis_to_origin = torch.norm(self.root_states[env_ids, :2] - self.env_origins[env_ids, :2], dim=1)
+        threshold = self.commands[env_ids, 0] * self.cfg.env.episode_length_s
+        move_up =dis_to_origin > th_hi
+        move_down = dis_to_origin < th_lo
         
-        # print(f"{self.cfg.terrain.cur_threshold_lo=}")
-        # print(f"{self.cfg.terrain.cur_threshold_hi=}")
-        # print(f"{dis_to_origin=}")
-        # print(f"{move_up=}, {move_down=}")
+        print(f"{th_hi=}")
+        print(f"{th_lo=}")
+        print(f"{dis_to_origin=}")
+        print(f"{move_up=}, {move_down=}")
         if self.cfg.terrain.curriculum:
             self._update_terrain_curriculum(env_ids)
         # avoid updating command curriculum at each step since the maximum command is common to all envs
@@ -375,16 +379,15 @@ class Go2(BaseTask):
         # fill extras
         self.extras["episode"] = {}
         for key in self.episode_sums.keys():
-            # self.extras["episode"]['rew_' + key] = torch.mean(self.episode_sums[key][env_ids]) / self.max_episode_length_s
-            self.extras["episode"]['rew_flat_' + key] = torch.sum(self.episode_sums[key][env_ids]*(self.env_class[env_ids]==0)) / self.max_episode_length_s
-            self.extras["episode"]['rew_step_' + key] = torch.mean(self.episode_sums[key][env_ids]*(self.env_class[env_ids]!=0)) / self.max_episode_length_s
+            self.extras["episode"]['rew_' + key] = torch.mean(self.episode_sums[key][env_ids]) / self.max_episode_length_s
             self.episode_sums[key][env_ids] = 0.
         self.episode_length_buf[env_ids] = 0
 
         # log additional curriculum info
-        # if self.cfg.terrain.curriculum:
-        #     self.extras["episode"]["terrain_level"] = torch.mean(self.terrain_levels[self.env_class!=0].float())
-            # self.extras["episode"]["terrain_level_max"] = torch.max(self.terrain_levels[self.env_class!=0].float())
+        if self.cfg.terrain.curriculum:
+            self.extras["episode"]["terrain_level"] = torch.mean(self.terrain_levels[self.env_class!=0].float())
+            self.extras["episode"]["terrain_level_max"] = torch.max(self.terrain_levels[self.env_class!=0].float())
+            self.extras["episode"]["terrain_level_min"] = torch.min(self.terrain_levels[self.env_class!=0].float())
         if self.cfg.commands.curriculum:
             self.extras["episode"]["max_command_x"] = self.command_ranges["lin_vel_x"][1]
         # send timeout info to the algorithm
@@ -440,7 +443,7 @@ class Go2(BaseTask):
 
         
         obs_buf = torch.cat((#skill_vector, 
-                            0*self.env_class.unsqueeze(1),  #[1,1]
+                            self.env_class.unsqueeze(1),  #[1,1]
                             base_ang_vel  * self.obs_scales.ang_vel,   #[1,3]
                             imu_obs,    #[1,2]
                             self.delta_z[:, None],  #[1,1]
@@ -466,7 +469,7 @@ class Go2(BaseTask):
             self.obs_buf = torch.cat([obs_buf, heights, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
         else:
             self.obs_buf = torch.cat([obs_buf, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
-        obs_buf[:, 5:7] = 0  # mask z and pitch in proprioceptive history
+        obs_buf[:, 6] = 0  # mask z in proprioceptive history
         self.obs_history_buf = torch.where(
             (self.episode_length_buf <= 1)[:, None, None], 
             torch.stack([obs_buf] * self.cfg.env.history_len, dim=1),
@@ -637,7 +640,6 @@ class Go2(BaseTask):
         # self.commands[env_ids, 0] *= (self.env_class[env_ids] != 0)*torch.sign(self.commands[env_ids, 0]) + (self.env_class[env_ids] == 0) # positive for parkour
         self.commands[env_ids, 1:] *= (self.env_class[env_ids] == 0).unsqueeze(1)
         # self.commands*=0
-        # self.commands[:,0]=1.
         # print(f"{self.commands=}")
 
     def _compute_torques(self, actions):
@@ -1138,6 +1140,7 @@ class Go2(BaseTask):
             self.terrain_types = torch.div(torch.arange(self.num_envs, device=self.device), (self.num_envs/self.cfg.terrain.num_cols), rounding_mode='floor').to(torch.long)
             self.max_terrain_level = self.cfg.terrain.num_rows
             self.terrain_origins = torch.from_numpy(self.terrain.env_origins).to(self.device).to(torch.float)
+            self.terrain_goal_length = torch.from_numpy(self.terrain.goal_length).to(self.device).to(torch.float)
             self.env_origins[:] = self.terrain_origins[self.terrain_levels, self.terrain_types]
             
             self.terrain_class = torch.from_numpy(self.terrain.terrain_type).to(self.device).to(torch.float)

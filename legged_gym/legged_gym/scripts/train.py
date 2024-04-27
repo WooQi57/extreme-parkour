@@ -62,6 +62,7 @@ def train(args):
     wandb.save(LEGGED_GYM_ENVS_DIR + "/go2/go2.py", policy="now")
     wandb.save(LEGGED_GYM_ENVS_DIR + "/go2/go2terrain.py", policy="now")
     wandb.save(LEGGED_GYM_ROOT_DIR + "/../rsl_rl/rsl_rl/modules/actor_critic.py", policy="now")
+    wandb.save(LEGGED_GYM_ROOT_DIR + "/../rsl_rl/rsl_rl/runners/on_policy_runner.py", policy="now")
     wandb.save(LEGGED_GYM_ROOT_DIR + "/legged_gym/scripts/run.sh", policy="now")
 
     env, env_cfg = task_registry.make_env(name=args.task, args=args)

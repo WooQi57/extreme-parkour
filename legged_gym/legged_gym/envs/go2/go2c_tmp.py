@@ -55,7 +55,6 @@ class Terrain:
         self.proportions = [np.sum(cfg.terrain_proportions[:i+1]) for i in range(len(cfg.terrain_proportions))]
         self.cfg.num_sub_terrains = cfg.num_rows * cfg.num_cols
         self.env_origins = np.zeros((cfg.num_rows, cfg.num_cols, 3))
-        self.goal_length = np.zeros((cfg.num_rows, cfg.num_cols))
         self.terrain_type = np.zeros((cfg.num_rows, cfg.num_cols))
         # self.env_slope_vec = np.zeros((cfg.num_rows, cfg.num_cols, 3))
         self.goals = np.zeros((cfg.num_rows, cfg.num_cols, cfg.num_goals, 3))
@@ -180,11 +179,11 @@ class Terrain:
             idx = 1
             parkour_step_terrain(terrain,
                                    num_stones=self.num_goals - 2,
-                                   step_height=0.1 + 0.45*difficulty, #0.1 + 0.35*difficulty,
-                                   x_range=[0.5,0.55],
+                                   step_height=0.1 + 0.35*difficulty,
+                                   x_range=[0.3,1.5],
                                    y_range=self.cfg.y_range,
                                    half_valid_width=[0.5, 1],
-                                   pad_height=-2.0,
+                                   pad_height=0,
                                    )
             self.add_roughness(terrain)
         else:
@@ -219,7 +218,6 @@ class Terrain:
         self.env_origins[i, j] = [env_origin_x, env_origin_y, env_origin_z]
         self.terrain_type[i, j] = terrain.idx
         self.goals[i, j, :, :] = terrain.goals + [i * self.env_length, j * self.env_width, 0]
-        self.goal_length[i, j] = np.linalg.norm([i * self.env_length-env_origin_x, j * self.env_width-env_origin_y])
         # self.env_slope_vec[i, j] = terrain.slope_vector
 
 def gap_terrain(terrain, gap_size, platform_size=1.):
@@ -507,17 +505,16 @@ def parkour_step_terrain(terrain,
                            platform_height=0., 
                            num_stones=8,
                         #    x_range=[1.5, 2.4],
-                           x_range=[0.2, 0.4],
+                            x_range=[0.2, 0.4],
                            y_range=[-0.15, 0.15],
                            half_valid_width=[0.45, 0.5],
                            step_height = 0.2,
-                           pad_width=0.5,
+                           pad_width=0.1,
                            pad_height=0.5):
     goals = np.zeros((num_stones+2, 3))
     # terrain.height_field_raw[:] = -200
     mid_y = terrain.length // 2  # length is actually y width
     # print(f"{step_height=}")
-    # x_range=[0.45,0.5]
     # step_height = 0.3
 
     dis_x_min = round( (x_range[0] + step_height) / terrain.horizontal_scale)

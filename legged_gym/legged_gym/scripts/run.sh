@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-#SBATCH --job-name="104-18-50"
+#SBATCH --job-name="101-20-2ac"
 #SBATCH --partition=iris-hi
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/104-18-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/101-20-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
 #SBATCH --time=48:00:00 # Max job length is 2 day
@@ -31,10 +31,12 @@ echo "
 --------------------------------------------
 --------------------------------------------
 task description:
-    no env class obs
-    don't use two actors
+    entropy 0.005
+    # use actor1 for depth actor init
+    # use cam
+    env class obs
+    use two actors
     from scratch again
-    no vz
     cur_threshold_lo = 6.5
     step x range should be greater than 0.5
     step_height=0.1 + 0.45*difficulty
@@ -49,23 +51,17 @@ task description:
     position = [0.3, 0, 0.147]  # front camera
 
     edit on_policy_runner to mask obs[5]=0 for student policy
-    #resumed from 106-12 15000
     lin_vel_x_parkour = [0.5, 1.2] # min max [m/s] - useful
     use global vel_z 
     add terrain level reward
-    #resume from 102-12
     use const dist for terrain level instead of v*t
     no pitch for climbing
     vel z reward 1.25 vel max 2
-    #resum from 100-12
-    #resume from 103-10 2200
     tracking_goal_vel = 4.0 
-    #resume from 101-08
     use feet height for delta_z
     _reward_lin_vel_z_parkour conditioned on close to edges or not
     lin_vel_x_parkour = [0.75, 1.5]
 
-    #_reward_lin_vel_z_parkour becomes 1 if not climbing
     entropy coeff 0.01
     make tracking z zero for walking
     adjust parkour vx and success threshold
@@ -82,7 +78,7 @@ task description:
 --------------------------------------------
 --------------------------------------------" 
 
-srun bash -c '/iris/u/wuqi23/anaconda3/envs/doggy/bin/python train.py  --task go2 --exptid 104-18-2actors --device cuda:0
+srun bash -c '/iris/u/wuqi23/anaconda3/envs/doggy/bin/python train.py  --task go2 --exptid 101-20-2ac --device cuda:0
 '
 
 # done

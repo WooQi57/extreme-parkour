@@ -158,7 +158,7 @@ class Go2RoughCfg( LeggedRobotCfg ):
             tracking_lin_vel = 1.5 # increase cmd following 1.5
             tracking_yaw_vel = 1.5  # 0.5
             tracking_z = 0.05*0
-            lin_vel_z_parkour = 0.5*0
+            lin_vel_z_parkour = 0.5
             tracking_pitch = 1.5 #1.
             terrain_level = 0.1
 
@@ -187,11 +187,11 @@ class Go2RoughCfg( LeggedRobotCfg ):
                 "parkour_step": 0.5,}
         terrain_proportions = list(terrain_dict.values())
         y_range = [-0.1, 0.1]
-        cur_threshold_hi = 9
-        cur_threshold_lo = 6.5  # 3
+        cur_threshold_hi = 0.8
+        cur_threshold_lo = 0.5  # 3
         
-        num_rows= 11 # number of terrain rows (levels)  # spreaded is benifitiall ! 10
-        num_cols = 20 # number of terrain cols (types)  40
+        # num_rows= 11 # number of terrain rows (levels)  # spreaded is benifitiall ! 10
+        # num_cols = 20 # number of terrain cols (types)  40
 
     class commands( LeggedRobotCfg.commands):
         num_commands = 4 # default: lin_vel_x, lin_vel_y, omega, pitch
@@ -225,7 +225,7 @@ class Go2RoughCfg( LeggedRobotCfg ):
         
 class Go2RoughCfgPPO( LeggedRobotCfgPPO ):
     class algorithm( LeggedRobotCfgPPO.algorithm ):
-        entropy_coef = 0.001  # 0 0.01
+        entropy_coef = 0.005  # 0 0.01
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'go2'

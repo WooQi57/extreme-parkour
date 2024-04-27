@@ -155,7 +155,9 @@ class Actor(nn.Module):
         if tanh_encoder_output:
             actor_layers0.append(nn.Tanh())
 
-        if USE_2AC:
+        self.use_2ac = USE_2AC
+        self.depth_actor_use_actor1 = True
+        if self.use_2ac:
             actor_layers1 = []
             actor_layers1.append(nn.Linear(num_prop+
                                         self.scan_encoder_output_dim+
@@ -173,6 +175,24 @@ class Actor(nn.Module):
                 actor_layers1.append(nn.Tanh())
             # self.actor_backbone = nn.Sequential(*actor_layers)
             self.actor_backbone0 = nn.Sequential(*actor_layers0)
+            self.actor_backbone1 = nn.Sequential(*actor_layers1)
+        elif self.depth_actor_use_actor1:
+            actor_layers1 = []
+            actor_layers1.append(nn.Linear(num_prop+
+                                        self.scan_encoder_output_dim+
+                                        num_priv_explicit+
+                                        priv_encoder_output_dim, 
+                                        actor_hidden_dims[0]))
+            actor_layers1.append(activation)
+            for l in range(len(actor_hidden_dims)):
+                if l == len(actor_hidden_dims) - 1:
+                    actor_layers1.append(nn.Linear(actor_hidden_dims[l], num_actions))
+                else:
+                    actor_layers1.append(nn.Linear(actor_hidden_dims[l], actor_hidden_dims[l + 1]))
+                    actor_layers1.append(activation)
+            if tanh_encoder_output:
+                actor_layers1.append(nn.Tanh())
+            # self.actor_backbone = nn.Sequential(*actor_layers)
             self.actor_backbone1 = nn.Sequential(*actor_layers1)
         else:
             self.actor_backbone0 = nn.Sequential(*actor_layers0)
@@ -194,7 +214,7 @@ class Actor(nn.Module):
             else:
                 latent = self.infer_priv_latent(obs)
             backbone_input = torch.cat([obs_prop_scan, obs_priv_explicit, latent], dim=1)
-            if USE_2AC:
+            if self.use_2ac:
                 flat_obs = backbone_input[backbone_input[:, 0] == 0]
                 step_obs = backbone_input[backbone_input[:, 0] == 1]
                 backbone_output0 = self.actor_backbone0(flat_obs)
@@ -204,6 +224,8 @@ class Actor(nn.Module):
                 backbone_output[backbone_input[:, 0] == 0, :] = backbone_output0
                 backbone_output[backbone_input[:, 0] == 1, :] = backbone_output1
                 # print(f"{backbone_input=}\n{flat_obs=}\n{step_obs=}\n{backbone_output0=}\n{backbone_output1=}\n{backbone_output=}")
+            elif self.depth_actor_use_actor1:
+                backbone_output = self.actor_backbone1(backbone_input)
             else:
                 backbone_output = self.actor_backbone0(backbone_input)
             return backbone_output
@@ -223,7 +245,7 @@ class Actor(nn.Module):
             else:
                 latent = self.infer_priv_latent(obs)
             backbone_input = torch.cat([obs_prop_scan, obs_priv_explicit, latent], dim=1)
-            if USE_2AC:
+            if self.use_2ac:
                 flat_obs = backbone_input[backbone_input[:, 0] == 0]
                 step_obs = backbone_input[backbone_input[:, 0] == 1]
                 backbone_output0 = self.actor_backbone0(flat_obs)
@@ -233,6 +255,8 @@ class Actor(nn.Module):
                 backbone_output[backbone_input[:, 0] == 0, :] = backbone_output0
                 backbone_output[backbone_input[:, 0] == 1, :] = backbone_output1
                 # print(f"{backbone_input=}\n{flat_obs=}\n{step_obs=}\n{backbone_output0=}\n{backbone_output1=}\n{backbone_output=}")
+            elif self.depth_actor_use_actor1:
+                backbone_output = self.actor_backbone1(backbone_input)
             else:
                 backbone_output = self.actor_backbone0(backbone_input)
             return backbone_output

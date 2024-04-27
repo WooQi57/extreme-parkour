@@ -83,6 +83,8 @@ class OnPolicyRunner:
                                                     )
             depth_encoder = RecurrentDepthBackbone(depth_backbone, env.cfg).to(self.device)
             depth_actor = deepcopy(actor_critic.actor)
+            depth_actor.use_2ac = False
+            depth_actor.depth_actor_use_actor1 = True
         else:
             depth_encoder = None
             depth_actor = None
@@ -251,7 +253,8 @@ class OnPolicyRunner:
                         scandots_latent = self.alg.actor_critic.actor.infer_scandots_latent(obs)
                     scandots_latent_buffer.append(scandots_latent)
                     obs_prop_depth = obs[:, :self.env.cfg.env.n_proprio].clone()
-                    obs_prop_depth[:, 5] = 0
+                    obs_prop_depth[:, 6] = 0
+                    obs_prop_depth[:, 0] = -1
                     depth_latent = self.alg.depth_encoder(infos["depth"].clone(), obs_prop_depth)  # clone is crucial to avoid in-place operation
                     # depth_latent_and_yaw = self.alg.depth_encoder(infos["depth"].clone(), obs_prop_depth)  # clone is crucial to avoid in-place operation
                     
@@ -267,7 +270,8 @@ class OnPolicyRunner:
                     actions_teacher_buffer.append(actions_teacher)
 
                 obs_student = obs.clone()
-                obs_student[:, 5] = 0  # mask delta_z to be 5
+                obs_student[:, 6] = 0  # mask delta_z to be 0
+                obs_student[:, 0] = -1  # mask terrain class to be -1
                 # obs_student[:, 6:8] = yaw.detach()
                 # obs_student[infos["delta_yaw_ok"], 6:8] = yaw.detach()[infos["delta_yaw_ok"]]
                 # delta_yaw_ok_buffer.append(torch.nonzero(infos["delta_yaw_ok"]).size(0) / infos["delta_yaw_ok"].numel())
