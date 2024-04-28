@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-#SBATCH --job-name="101-20-2ac"
+#SBATCH --job-name="100-23-2ac"
 #SBATCH --partition=iris-hi
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/101-20-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/100-23-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
 #SBATCH --time=48:00:00 # Max job length is 2 day
@@ -31,7 +31,8 @@ echo "
 --------------------------------------------
 --------------------------------------------
 task description:
-    entropy 0.005
+    use 0.8*env_length and 0.5*env_length
+    add gulf for steps
     # use actor1 for depth actor init
     # use cam
     env class obs
@@ -78,7 +79,7 @@ task description:
 --------------------------------------------
 --------------------------------------------" 
 
-srun bash -c '/iris/u/wuqi23/anaconda3/envs/doggy/bin/python train.py  --task go2 --exptid 101-20-2ac --device cuda:0
+srun bash -c '/iris/u/wuqi23/anaconda3/envs/doggy/bin/python train.py  --task go2 --exptid 100-23-2ac --device cuda:0 
 '
 
 # done

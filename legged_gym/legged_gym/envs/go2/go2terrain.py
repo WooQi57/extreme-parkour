@@ -77,7 +77,7 @@ class Terrain:
             if hasattr(cfg, "max_difficulty"):
                 self.curiculum(random=True, max_difficulty=cfg.max_difficulty)
             else:
-                self.curiculum(random=True)
+                self.curiculum(random=False)
             # self.randomized_terrain()   
         
         self.heightsamples = self.height_field_raw
@@ -181,7 +181,7 @@ class Terrain:
             parkour_step_terrain(terrain,
                                    num_stones=self.num_goals - 2,
                                    step_height=0.1 + 0.45*difficulty, #0.1 + 0.35*difficulty,
-                                   x_range=[0.5,0.55],
+                                   x_range=[0.5,1.5],
                                    y_range=self.cfg.y_range,
                                    half_valid_width=[0.5, 1],
                                    pad_height=-2.0,
@@ -219,7 +219,7 @@ class Terrain:
         self.env_origins[i, j] = [env_origin_x, env_origin_y, env_origin_z]
         self.terrain_type[i, j] = terrain.idx
         self.goals[i, j, :, :] = terrain.goals + [i * self.env_length, j * self.env_width, 0]
-        self.goal_length[i, j] = np.linalg.norm([i * self.env_length-env_origin_x, j * self.env_width-env_origin_y])
+        self.goal_length[i, j] = np.linalg.norm(self.goals[i, j, -1, :2]-[env_origin_x, env_origin_y])
         # self.env_slope_vec[i, j] = terrain.slope_vector
 
 def gap_terrain(terrain, gap_size, platform_size=1.):

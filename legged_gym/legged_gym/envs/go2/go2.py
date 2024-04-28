@@ -338,18 +338,19 @@ class Go2(BaseTask):
         if len(env_ids) == 0:
             return
         # update curriculum
-        goal_lengths = self.terrain_goal_length[self.terrain_levels,self.terrain_types]
-        th_hi = goal_lengths[env_ids]*self.cfg.terrain.cur_threshold_hi
-        th_lo = goal_lengths[env_ids]*self.cfg.terrain.cur_threshold_lo
-        dis_to_origin = torch.norm(self.root_states[env_ids, :2] - self.env_origins[env_ids, :2], dim=1)
-        threshold = self.commands[env_ids, 0] * self.cfg.env.episode_length_s
-        move_up =dis_to_origin > th_hi
-        move_down = dis_to_origin < th_lo
+        # # goal_lengths = self.terrain_goal_length[self.terrain_levels,self.terrain_types]
+        # th_hi = self.env_goal_lengths[env_ids]*self.cfg.terrain.cur_threshold_hi
+        # th_lo = self.env_goal_lengths[env_ids]*self.cfg.terrain.cur_threshold_lo
+        # dis_to_origin = torch.norm(self.root_states[env_ids, :2] - self.env_origins[env_ids, :2], dim=1)
+        # threshold = self.commands[env_ids, 0] * self.cfg.env.episode_length_s
+        # move_up =dis_to_origin > th_hi
+        # move_down = dis_to_origin < th_lo
         
-        print(f"{th_hi=}")
-        print(f"{th_lo=}")
-        print(f"{dis_to_origin=}")
-        print(f"{move_up=}, {move_down=}")
+        # print(f"{self.env_goal_lengths[env_ids]=}")
+        # print(f"{th_hi=}")
+        # print(f"{th_lo=}")
+        # print(f"{dis_to_origin=}")
+        # print(f"{move_up=}, {move_down=}")
         if self.cfg.terrain.curriculum:
             self._update_terrain_curriculum(env_ids)
         # avoid updating command curriculum at each step since the maximum command is common to all envs
@@ -749,10 +750,13 @@ class Go2(BaseTask):
             # don't change on initial reset
             return
         
+        th_hi = self.env_goal_lengths[env_ids]*self.cfg.terrain.cur_threshold_hi
+        th_lo = self.env_goal_lengths[env_ids]*self.cfg.terrain.cur_threshold_lo
         dis_to_origin = torch.norm(self.root_states[env_ids, :2] - self.env_origins[env_ids, :2], dim=1)
         threshold = self.commands[env_ids, 0] * self.cfg.env.episode_length_s
-        move_up =dis_to_origin > self.cfg.terrain.cur_threshold_hi
-        move_down = dis_to_origin < self.cfg.terrain.cur_threshold_lo
+        move_up =dis_to_origin > th_hi
+        move_down = dis_to_origin < th_lo
+
         self.terrain_levels[env_ids] += 1 * move_up - 1 * move_down
         # # Robots that solve the last level are sent to a random one
         self.terrain_levels[env_ids] = torch.where(self.terrain_levels[env_ids]>=self.max_terrain_level,
@@ -1142,7 +1146,7 @@ class Go2(BaseTask):
             self.terrain_origins = torch.from_numpy(self.terrain.env_origins).to(self.device).to(torch.float)
             self.terrain_goal_length = torch.from_numpy(self.terrain.goal_length).to(self.device).to(torch.float)
             self.env_origins[:] = self.terrain_origins[self.terrain_levels, self.terrain_types]
-            
+            self.env_goal_lengths = self.terrain_goal_length[self.terrain_levels, self.terrain_types]
             self.terrain_class = torch.from_numpy(self.terrain.terrain_type).to(self.device).to(torch.float)
             self.env_class[:] = self.terrain_class[self.terrain_levels, self.terrain_types]
 
