@@ -72,8 +72,8 @@ def play(args):
     env_cfg.env.episode_length_s = 20 # 60 30  8
     env_cfg.commands.resampling_time = 6 # 60 10  2
     env_cfg.terrain.num_rows = 2
-    env_cfg.terrain.num_cols = 40
-    env_cfg.terrain.height = [0.02, 0.02]
+    env_cfg.terrain.num_cols = 42
+    env_cfg.terrain.height = [0.02, 0.06]
     env_cfg.terrain.terrain_dict = {
                                     "parkour_flat": 0.5*0,
                                     "parkour_step": 0.5,}
@@ -85,10 +85,10 @@ def play(args):
     env_cfg.depth.angle = [27-0, 27+1]
     env_cfg.noise.add_noise = True
     env_cfg.domain_rand.randomize_friction = True
-    env_cfg.domain_rand.push_robots = False
+    env_cfg.domain_rand.push_robots = True
     env_cfg.domain_rand.push_interval_s = 6
-    env_cfg.domain_rand.randomize_base_mass = False
-    env_cfg.domain_rand.randomize_base_com = False
+    env_cfg.domain_rand.randomize_base_mass = True
+    env_cfg.domain_rand.randomize_base_com = True
 
     depth_latent_buffer = []
     # prepare environment
