@@ -68,12 +68,12 @@ def play(args):
     # override some parameters for testing
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 1
-    env_cfg.env.num_envs = 40 if not args.save else 64  # 2
+    env_cfg.env.num_envs = 2 if not args.save else 64  # 2
     env_cfg.env.episode_length_s = 20 # 60 30  8
     env_cfg.commands.resampling_time = 6 # 60 10  2
     env_cfg.terrain.num_rows = 2
-    env_cfg.terrain.num_cols = 42
-    env_cfg.terrain.height = [0.02, 0.06]
+    env_cfg.terrain.num_cols = 2
+    env_cfg.terrain.height = [0.05, 0.06]
     env_cfg.terrain.terrain_dict = {
                                     "parkour_flat": 0.5*0,
                                     "parkour_step": 0.5,}

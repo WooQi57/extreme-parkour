@@ -179,6 +179,7 @@ class Go2(BaseTask):
 
     def crop_depth_image(self, depth_image):
         # crop 30 pixels from the left and right and and 20 pixels from bottom and return croped image
+        # return depth_image[:-11, 4:-4]        
         return depth_image[:-2, 4:-4]
 
     def update_depth_buffer(self):
@@ -439,7 +440,6 @@ class Go2(BaseTask):
         self.delta_z[self.env_class == 0] = 0
         # print(f"{self.cur_goals[:, 2]=}")
         # print(f"{self.root_states[:, 2]=}")
-
         self.commands[self.env_class!=0, 2] = torch.clip(0.5*wrap_to_pi(self.target_yaw[self.env_class!=0] - self.yaw[self.env_class!=0]), self.command_ranges["omega"][0], self.command_ranges["omega"][1])
 
         # add noise to observation
@@ -449,7 +449,8 @@ class Go2(BaseTask):
         delta_pitch = self.get_noisy_measurement(self.delta_pitch, self.cfg.noise.noise_scales.rotation)
         dof_pos = self.get_noisy_measurement(self.dof_pos, self.cfg.noise.noise_scales.dof_pos)
         dof_vel = self.get_noisy_measurement(self.dof_vel, self.cfg.noise.noise_scales.dof_vel)
-
+        dof_vel[:,-2]=0  # gripper dof same as real
+        dof_pos[:,-2]=-0.04  # gripper dof same as real
         
         obs_buf = torch.cat((#skill_vector, 
                             self.env_class.unsqueeze(1),  #[1,1]
@@ -464,6 +465,16 @@ class Go2(BaseTask):
                             0*self.reindex_feet(self.contact_filt.float()-0.5),   #[1,4]
                             ),dim=-1)
                             # delta_yaw[:, None],    #[1,1]
+        # obs_buf[:,0]=-1
+        # obs_buf[:,6]=0
+        # obs_buf[:,8]=0.8
+        # obs_buf[:,9]=0
+        # obs_buf[:,10]=0
+        # obs_buf[:,11]=0
+        # obs_buf[:,24]=-0.04
+        # obs_buf[:,25]=0
+        # obs_buf[:,37]=0
+
         priv_explicit = torch.cat((self.base_lin_vel * self.obs_scales.lin_vel,
                                    0 * self.base_lin_vel,
                                    0 * self.base_lin_vel), dim=-1)
@@ -478,6 +489,7 @@ class Go2(BaseTask):
             self.obs_buf = torch.cat([obs_buf, heights, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
         else:
             self.obs_buf = torch.cat([obs_buf, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
+        obs_buf[:, 0] = -1  # mask env class in proprioceptive history
         obs_buf[:, 6] = 0  # mask z in proprioceptive history
         self.obs_history_buf = torch.where(
             (self.episode_length_buf <= 1)[:, None, None], 
@@ -649,6 +661,7 @@ class Go2(BaseTask):
         # self.commands[env_ids, 0] *= (self.env_class[env_ids] != 0)*torch.sign(self.commands[env_ids, 0]) + (self.env_class[env_ids] == 0) # positive for parkour
         self.commands[env_ids, 1:] *= (self.env_class[env_ids] == 0).unsqueeze(1)
         # self.commands*=0
+        # self.commands[:, 0]=0.5
         # print(f"{self.commands=}")
 
     def _compute_torques(self, actions):

@@ -1,32 +1,3 @@
-# SPDX-FileCopyrightText: Copyright (c) 2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: BSD-3-Clause
-# 
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#
-# 1. Redistributions of source code must retain the above copyright notice, this
-# list of conditions and the following disclaimer.
-#
-# 2. Redistributions in binary form must reproduce the above copyright notice,
-# this list of conditions and the following disclaimer in the documentation
-# and/or other materials provided with the distribution.
-#
-# 3. Neither the name of the copyright holder nor the names of its
-# contributors may be used to endorse or promote products derived from
-# this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
-# Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
 from legged_gym import LEGGED_GYM_ROOT_DIR
 import os
@@ -68,27 +39,27 @@ def play(args):
     # override some parameters for testing
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 1
-    env_cfg.env.num_envs = 2 if not args.save else 64  # 2
+    env_cfg.env.num_envs = 20 if not args.save else 64  # 2
     env_cfg.env.episode_length_s = 20 # 60 30  8
     env_cfg.commands.resampling_time = 6 # 60 10  2
     env_cfg.terrain.num_rows = 2
-    env_cfg.terrain.num_cols = 2
+    env_cfg.terrain.num_cols = 10
     env_cfg.terrain.height = [0.02, 0.02]
     env_cfg.terrain.terrain_dict = {
-                                    "parkour_flat": 0.5,
+                                    "parkour_flat": 0.5*0,
                                     "parkour_step": 0.5,}
     
     env_cfg.terrain.terrain_proportions = list(env_cfg.terrain.terrain_dict.values())
     env_cfg.terrain.curriculum = False
     env_cfg.terrain.max_difficulty = True
     
-    env_cfg.depth.angle = [27-0, 27+1]
+    env_cfg.depth.angle = [27-5, 27+5]
     env_cfg.noise.add_noise = True
     env_cfg.domain_rand.randomize_friction = True
     env_cfg.domain_rand.push_robots = False
     env_cfg.domain_rand.push_interval_s = 6
-    env_cfg.domain_rand.randomize_base_mass = False
-    env_cfg.domain_rand.randomize_base_com = False
+    env_cfg.domain_rand.randomize_base_mass = True
+    env_cfg.domain_rand.randomize_base_com = True
 
     depth_latent_buffer = []
     # prepare environment
@@ -130,33 +101,35 @@ def play(args):
     infos["depth"] = env.depth_buffer.clone().to(ppo_runner.device)[:, -1] if ppo_runner.if_depth else None
 
     for i in range(2*int(env.max_episode_length)):
-        if args.use_jit:
-            if env.cfg.depth.use_camera:
-                if infos["depth"] is not None:
-                    obs_student = obs[:, :env.cfg.env.n_proprio].clone()
-                    obs_student[:,0] = -1
-                    obs_student[:, 6] = 0
-                    depth_latent = depth_encoder(infos["depth"], obs_student)
-                actions = policy_jit(obs.detach(), depth_latent)
-                original_actions = ppo_runner.alg.depth_actor(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
-                # print(f"jit actions:{actions}\noriginal actions:{original_actions}")
-                print(f"diff:{torch.norm(actions-original_actions)}")
-        else:
-            if env.cfg.depth.use_camera:
-                if infos["depth"] is not None:
-                    obs_student = obs[:, :env.cfg.env.n_proprio].clone()
-                    obs_student[:,0] = -1
-                    obs_student[:, 6] = 0
-                    depth_latent = depth_encoder(infos["depth"], obs_student)
-                actions = ppo_runner.alg.depth_actor(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
-                
-        obs, _, rews, dones, infos = env.step(actions.detach())
+        if env.cfg.depth.use_camera:
+            # train stuff
+            if infos["depth"] != None:
+                with torch.no_grad():
+                    scandots_latent = ppo_runner.alg.actor_critic.actor.infer_scandots_latent(obs)
+                obs_prop_depth = obs[:, :env.cfg.env.n_proprio].clone()
+                obs_prop_depth[:, 6] = 0
+                obs_prop_depth[:, 0] = -1
+                depth_latent = ppo_runner.alg.depth_encoder(infos["depth"].clone(), obs_prop_depth)  # clone is crucial to avoid in-place operation
+                depth_latent_buffer.append(depth_latent)
+            
+            with torch.no_grad():
+                actions_teacher = ppo_runner.alg.actor_critic.act_inference(obs, hist_encoding=True, scandots_latent=None)
+
+            obs_student = obs.clone()
+            obs_student[:, 6] = 0  # mask delta_z to be 0
+            obs_student[:, 0] = -1  # mask terrain class to be -1
+            actions_student = ppo_runner.alg.depth_actor(obs_student, hist_encoding=True, scandots_latent=depth_latent)
+
+            # obs, privileged_obs, rewards, dones, infos = env.step(actions_teacher.detach())  # obs has changed to next_obs !! if done obs has been reset
+            obs, privileged_obs, rewards, dones, infos = env.step(actions_student.detach())  # obs has changed to next_obs !! if done obs has been reset
+
         if args.web:
             web_viewer.render(fetch_results=True,
                         step_graphics=True,
                         render_all_camera_sensors=True,
                         wait_for_page_load=True)
             web_viewer.write_vid()
+
 
 if __name__ == '__main__':
     EXPORT_POLICY = False
