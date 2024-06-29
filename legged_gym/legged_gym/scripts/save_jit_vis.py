@@ -144,68 +144,40 @@ class Actor(nn.Module):
             self.actor_backbone0 = nn.Sequential(*actor_layers0)
 
     def forward(self, obs, hist_encoding: bool, eval=False, scandots_latent=None):
-        if not eval:
-            if self.if_scan_encode:
-                obs_scan = obs[:, self.num_prop:self.num_prop + self.num_scan]
-                if scandots_latent is None:
-                    scan_latent = self.scan_encoder(obs_scan)   
-                else:
-                    scan_latent = scandots_latent
-                obs_prop_scan = torch.cat([obs[:, :self.num_prop], scan_latent], dim=1)
+        # if not eval:
+        if self.if_scan_encode:
+            obs_scan = obs[:, self.num_prop:self.num_prop + self.num_scan]
+            if scandots_latent is None:
+                scan_latent = self.scan_encoder(obs_scan)   
             else:
-                obs_prop_scan = obs[:, :self.num_prop + self.num_scan]
-            obs_priv_explicit = obs[:, self.num_prop + self.num_scan:self.num_prop + self.num_scan + self.num_priv_explicit]
-            if hist_encoding:
-                latent = self.infer_hist_latent(obs)
-            else:
-                latent = self.infer_priv_latent(obs)
-            backbone_input = torch.cat([obs_prop_scan, obs_priv_explicit, latent], dim=1)
-            # if self.use_2ac:
-            #     flat_obs = backbone_input[backbone_input[:, 0] == 0]
-            #     step_obs = backbone_input[backbone_input[:, 0] == 1]
-            #     backbone_output0 = self.actor_backbone0(flat_obs)
-            #     backbone_output1 = self.actor_backbone1(step_obs)
-
-            #     backbone_output = torch.cat([backbone_output0, backbone_output1], dim=0)
-            #     backbone_output[backbone_input[:, 0] == 0, :] = backbone_output0
-            #     backbone_output[backbone_input[:, 0] == 1, :] = backbone_output1
-            #     # print(f"{backbone_input=}\n{flat_obs=}\n{step_obs=}\n{backbone_output0=}\n{backbone_output1=}\n{backbone_output=}")
-            # elif self.depth_actor_use_actor1:
-            backbone_output = self.actor_backbone1(backbone_input)
-            # else:
-            #     backbone_output = self.actor_backbone0(backbone_input)
-            return backbone_output
+                scan_latent = scandots_latent
+            obs_prop_scan = torch.cat([obs[:, :self.num_prop], scan_latent], dim=1)
         else:
-            if self.if_scan_encode:
-                obs_scan = obs[:, self.num_prop:self.num_prop + self.num_scan]
-                if scandots_latent is None:
-                    scan_latent = self.scan_encoder(obs_scan)   
-                else:
-                    scan_latent = scandots_latent
-                obs_prop_scan = torch.cat([obs[:, :self.num_prop], scan_latent], dim=1)
-            else:
-                obs_prop_scan = obs[:, :self.num_prop + self.num_scan]
-            obs_priv_explicit = obs[:, self.num_prop + self.num_scan:self.num_prop + self.num_scan + self.num_priv_explicit]
-            if hist_encoding:
-                latent = self.infer_hist_latent(obs)
-            else:
-                latent = self.infer_priv_latent(obs)
-            backbone_input = torch.cat([obs_prop_scan, obs_priv_explicit, latent], dim=1)
-            # if self.use_2ac:
-            #     flat_obs = backbone_input[backbone_input[:, 0] == 0]
-            #     step_obs = backbone_input[backbone_input[:, 0] == 1]
-            #     backbone_output0 = self.actor_backbone0(flat_obs)
-            #     backbone_output1 = self.actor_backbone1(step_obs)
+            obs_prop_scan = obs[:, :self.num_prop + self.num_scan]
+        obs_priv_explicit = obs[:, self.num_prop + self.num_scan:self.num_prop + self.num_scan + self.num_priv_explicit]
+        if hist_encoding:
+            latent = self.infer_hist_latent(obs)
+        else:
+            latent = self.infer_priv_latent(obs)
+        backbone_input = torch.cat([obs_prop_scan, obs_priv_explicit, latent], dim=1)
+        # if self.use_2ac:
+        #     flat_obs = backbone_input[backbone_input[:, 0] == 0]
+        #     step_obs = backbone_input[backbone_input[:, 0] == 1]
+        #     backbone_output0 = self.actor_backbone0(flat_obs)
+        #     backbone_output1 = self.actor_backbone1(step_obs)
 
-            #     backbone_output = torch.cat([backbone_output0, backbone_output1], dim=0)
-            #     backbone_output[backbone_input[:, 0] == 0, :] = backbone_output0
-            #     backbone_output[backbone_input[:, 0] == 1, :] = backbone_output1
-            #     # print(f"{backbone_input=}\n{flat_obs=}\n{step_obs=}\n{backbone_output0=}\n{backbone_output1=}\n{backbone_output=}")
-            # elif self.depth_actor_use_actor1:
+        #     backbone_output = torch.cat([backbone_output0, backbone_output1], dim=0)
+        #     backbone_output[backbone_input[:, 0] == 0, :] = backbone_output0
+        #     backbone_output[backbone_input[:, 0] == 1, :] = backbone_output1
+        #     # print("using 2 ac")
+        #     # print(f"{backbone_input=}\n{flat_obs=}\n{step_obs=}\n{backbone_output0=}\n{backbone_output1=}\n{backbone_output=}")
+        if self.depth_actor_use_actor1:
             backbone_output = self.actor_backbone1(backbone_input)
-            # else:
-            #     backbone_output = self.actor_backbone0(backbone_input)
-            return backbone_output
+            # print("using actor1")
+        else:
+            backbone_output = self.actor_backbone0(backbone_input)
+            # print("using actor0")
+        return backbone_output
     
     def infer_priv_latent(self, obs):
         priv = obs[:, self.num_prop + self.num_scan + self.num_priv_explicit: self.num_prop + self.num_scan + self.num_priv_explicit + self.num_priv_latent]

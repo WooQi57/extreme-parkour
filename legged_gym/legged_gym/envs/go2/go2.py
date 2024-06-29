@@ -179,8 +179,8 @@ class Go2(BaseTask):
 
     def crop_depth_image(self, depth_image):
         # crop 30 pixels from the left and right and and 20 pixels from bottom and return croped image
-        # return depth_image[:-11, 4:-4]        
-        return depth_image[:-2, 4:-4]
+        return depth_image[:-11, 4:-4]        
+        # return depth_image[:-2, 4:-4]
 
     def update_depth_buffer(self):
         if not self.cfg.depth.use_camera:
@@ -659,9 +659,10 @@ class Go2(BaseTask):
 
         # set commands to zero for parkour
         # self.commands[env_ids, 0] *= (self.env_class[env_ids] != 0)*torch.sign(self.commands[env_ids, 0]) + (self.env_class[env_ids] == 0) # positive for parkour
-        self.commands[env_ids, 1:] *= (self.env_class[env_ids] == 0).unsqueeze(1)
         # self.commands*=0
-        # self.commands[:, 0]=0.5
+        # self.commands[:, 0]=0.7
+        
+        self.commands[env_ids, 1:] *= (self.env_class[env_ids] == 0).unsqueeze(1)
         # print(f"{self.commands=}")
 
     def _compute_torques(self, actions):
@@ -758,6 +759,7 @@ class Go2(BaseTask):
         max_vel_z = self.cfg.domain_rand.max_push_vel_z
         self.root_states[:, 7:9] = torch_rand_float(-max_vel, max_vel, (self.num_envs, 2), device=self.device) # lin vel x/y
         self.root_states[:, 9] = torch_rand_float(-max_vel_z, max_vel_z, (self.num_envs,1), device=self.device).squeeze(1) # lin vel z
+        self.all_root_states[self.robot_idxs,:] = self.root_states
         self.gym.set_actor_root_state_tensor(self.sim, gymtorch.unwrap_tensor(self.all_root_states))
 
     def _update_terrain_curriculum(self, env_ids):
@@ -1371,6 +1373,7 @@ class Go2(BaseTask):
         # print(f"{cur_vel=}")
         rew = torch.minimum(torch.sum(target_vec_norm * cur_vel, dim=-1), self.commands[:, 0]) / (self.commands[:, 0] + 1e-5)
         rew[self.env_class == 0] = 0.
+        # print(f"{rew}")
         return rew
 
     def _reward_tracking_yaw(self):
@@ -1428,7 +1431,7 @@ class Go2(BaseTask):
         return rew
 
     def _reward_tracking_pitch(self):
-        rew = torch.exp(-torch.abs(self.commands[:, 3] - self.pitch))
+        rew = torch.exp(-5*torch.abs(self.commands[:, 3] - self.pitch))
         rew[self.env_class != 0] = 0.
         # print(f"{rew=}")
         # print(f"{self.pitch=}")
@@ -1472,7 +1475,8 @@ class Go2(BaseTask):
     
     def _reward_torques(self):
         # print(f"{self.contact_forces[:, self.feet_indices, 2]=}")
-        return torch.sum(torch.square(self.torques), dim=1)
+        # return torch.sum(torch.square(self.torques), dim=1)
+        return torch.sum(torch.abs(torch.pow(self.torques, 3)), dim=1)
 
     def _reward_hip_pos(self):
         return torch.sum(torch.square(self.dof_pos[:, self.hip_indices] - self.default_dof_pos[:, self.hip_indices]), dim=1)

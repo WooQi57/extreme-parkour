@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-#SBATCH --job-name="100-27-cam2ac"
+#SBATCH --job-name="103-32-cam2ac"
 #SBATCH --partition=iris-hi
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/100-27-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/103-32-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
 #SBATCH --time=48:00:00 # Max job length is 2 day
@@ -31,12 +31,26 @@ echo "
 --------------------------------------------
 --------------------------------------------
 task description:
+    # use cam
+    # use 101-32
+
+    Pitch reward use exp(-5*err)
+    Penalize gripper contact only
+    Reward dof_error = -0.2
+    Reward ang_vel_xy = -0.12 
+    Friction [0.6, 8.]
+    torch.abs(torch.pow(self.torques, 3))
+    # reward torques = -0.00001*10
+    use actual pushes
+    first step farther
+    narrow the step width to 0.4-0.75
+
+    fix possibly deepcopy bug.
     fix history bug!!!
-    # crop [:-11, 4:-4]
+    crop [:-11, 4:-4]
     use 0.8*env_length and 0.5*env_length
     add gulf for steps
     use actor1 for depth actor init
-    use cam from 100-26
     env class obs
     use two actors
     from scratch again
@@ -82,7 +96,7 @@ task description:
 --------------------------------------------" 
 # --resume --resumeid 100-23 --use_camera 
 
-srun bash -c '/iris/u/wuqi23/anaconda3/envs/doggy/bin/python train.py  --task go2 --exptid 100-28-cam2ac --resume --resumeid 100-27 --use_camera --device cuda:0 
+srun bash -c '/iris/u/wuqi23/anaconda3/envs/doggy/bin/python train.py  --task go2 --exptid 103-32-2ac  --device cuda:0 
 '
 
 # done

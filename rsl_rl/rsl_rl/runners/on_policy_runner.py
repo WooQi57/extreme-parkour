@@ -47,6 +47,8 @@ import sys
 from copy import copy, deepcopy
 import warnings
 
+# nn.module
+# save all
 class OnPolicyRunner:
 
     def __init__(self,
@@ -82,7 +84,8 @@ class OnPolicyRunner:
                                                     self.depth_encoder_cfg["hidden_dims"],
                                                     )
             depth_encoder = RecurrentDepthBackbone(depth_backbone, env.cfg).to(self.device)
-            depth_actor = deepcopy(actor_critic.actor)
+            # depth_actor = deepcopy(actor_critic.actor)  # bug. not understand why deepcopy doesn't work
+            depth_actor = Actor(self.env.cfg.env.n_proprio,self.env.cfg.env.n_scan, self.env.num_actions, self.policy_cfg["scan_encoder_dims"], self.policy_cfg["actor_hidden_dims"], self.policy_cfg["priv_encoder_dims"], self.env.cfg.env.n_priv_latent, self.env.cfg.env.n_priv, self.env.cfg.env.history_len, get_activation('elu'), tanh_encoder_output=False).to(self.device)
             depth_actor.use_2ac = False
             depth_actor.depth_actor_use_actor1 = True
         else:

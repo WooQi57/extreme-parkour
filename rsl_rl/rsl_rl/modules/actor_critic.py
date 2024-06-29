@@ -223,14 +223,14 @@ class Actor(nn.Module):
             backbone_output = torch.cat([backbone_output0, backbone_output1], dim=0)
             backbone_output[backbone_input[:, 0] == 0, :] = backbone_output0
             backbone_output[backbone_input[:, 0] == 1, :] = backbone_output1
-            print("using 2 ac")
+            # print("using 2 ac")
             # print(f"{backbone_input=}\n{flat_obs=}\n{step_obs=}\n{backbone_output0=}\n{backbone_output1=}\n{backbone_output=}")
         elif self.depth_actor_use_actor1:
             backbone_output = self.actor_backbone1(backbone_input)
-            print("using actor1")
+            # print("using actor1")
         else:
             backbone_output = self.actor_backbone0(backbone_input)
-            print("using actor0")
+            # print("using actor0")
         return backbone_output
         # else:
         #     if self.if_scan_encode:

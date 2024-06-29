@@ -131,16 +131,16 @@ class Go2RoughCfg( LeggedRobotCfg ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/urdf/go2g_description_v6.urdf'
         foot_name = "foot"
         finger_name = "finger"
-        penalize_contacts_on = ["base", "thigh", "calf", "finger", "gripper"]
+        penalize_contacts_on = ["finger", "gripper"]  #["base", "thigh", "calf", "finger", "gripper"]
         terminate_after_contacts_on = ["base","finger","gripper"]#,"thigh","finger", "gripper"]
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
 
     class domain_rand( LeggedRobotCfg.domain_rand):
-        friction_range = [0.6, 6.]  # 0.6 2
+        friction_range = [0.6, 8.]  # 0.6 2 6?
         push_robots = True
         push_interval_s = 8
         max_push_vel_xy = 0.5
-        max_push_vel_z = 0.1
+        max_push_vel_z = 0.5 #0.1
 
         delay_update_global_steps = 24 * 8000  #8000 3000
         action_delay = True
@@ -164,15 +164,15 @@ class Go2RoughCfg( LeggedRobotCfg ):
 
             # regularization rewards
             lin_vel_z_walking = -1.0  # for walking only
-            ang_vel_xy = -0.05
+            ang_vel_xy = -0.12 #-0.05
             orientation = -1.
             dof_acc = -2.5e-7
             collision = -10.  # -5
             action_rate = -0.1
             delta_torques = -1.0e-7
-            torques = -0.00001
+            torques = -0.00001*1
             hip_pos = -0.5
-            dof_error = -0.04
+            dof_error = -0.2 # -0.04
             feet_stumble = -1
             feet_edge = -1
         soft_dof_pos_limit = 0.9

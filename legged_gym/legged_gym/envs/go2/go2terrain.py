@@ -183,7 +183,7 @@ class Terrain:
                                    step_height=0.1 + 0.45*difficulty, #0.1 + 0.35*difficulty,
                                    x_range=[0.5,1.5],
                                    y_range=self.cfg.y_range,
-                                   half_valid_width=[0.5, 1],
+                                   half_valid_width=[0.4, 0.75],
                                    pad_height=-2.0,
                                    )
             self.add_roughness(terrain)
@@ -538,7 +538,7 @@ def parkour_step_terrain(terrain,
     # incline_height = round(incline_height / terrain.vertical_scale)
     # last_incline_height = round(last_incline_height / terrain.vertical_scale)
 
-    dis_x = platform_len
+    dis_x = platform_len + round(2 / terrain.horizontal_scale)
     last_dis_x = dis_x
     stair_height = 0
     goals[0] = [platform_len - round(1 / terrain.horizontal_scale), mid_y, stair_height*terrain.vertical_scale/ terrain.horizontal_scale]
