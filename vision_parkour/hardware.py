@@ -44,7 +44,7 @@ class HardwareCfg():
         n_scan = 132
         n_priv = 3+3 +3
         n_priv_latent = 4 + 1 + 14 +14
-        n_proprio = 3 + 2 + 2 + 4 + 13*3 + 4
+        n_proprio = 1 + 3 + 2 + 2 + 4 + 13*3 + 4
         history_len = 10
 
         num_observations = n_proprio + n_scan + history_len*n_proprio + n_priv_latent + n_priv #n_scan + n_proprio + n_priv #187 + 47 + 5 + 12 
@@ -58,8 +58,8 @@ class HardwareCfg():
         control_type = 'P'
         # stiffness = {'joint': 40.}  # [N*m/rad]
         # damping = {'joint': 0.5}     # [N*m*s/rad]
-        stiffness = {'joint': 15.}  # [N*m/rad] 30
-        damping = {'joint': 1.}     # [N*m*s/rad] 0.6
+        stiffness = {'joint': 30}  # [N*m/rad] 30
+        damping = {'joint': 0.6}     # [N*m*s/rad] 0.6
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 0.25
         # decimation: Number of control action updates @ sim DT per policy DT

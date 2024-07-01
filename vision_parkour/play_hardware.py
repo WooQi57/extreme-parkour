@@ -36,6 +36,7 @@ WALK_STRAIGHT = False
 USE_TIMER = False
 PLOT_DATA = False
 USE_GRIPPPER = True
+NO_MOTOR = False
 
 if USE_GRIPPPER:
     from dynamixel_sdk_custom_interfaces.msg import SetPosition
@@ -43,7 +44,7 @@ if USE_GRIPPPER:
 class DepthSocket():
     def __init__(self, fake_depth_latent):
         self.send_addr = "127.0.0.1"
-        self.send_port = 5703
+        self.send_port = 5701
 
         self.sock_recv = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock_recv.bind(("127.0.0.1", 5702))
@@ -64,7 +65,7 @@ class DepthSocket():
         return np.array(self._depth_latent)
 
     def send_prop(self, prop_np):
-        assert prop_np.shape[0] == 54
+        assert prop_np.shape[0] == 55
         string = np.array2string(prop_np, precision=4, separator=',', suppress_small=False, max_line_width=100000)
         string = string[1:-1] # remove []
         msg = string.encode('utf-8')
@@ -124,7 +125,7 @@ class DeployNode(Node):
         self.prev_action = np.zeros(self.env.cfg.env.num_actions)
         self.command = np.zeros(self.env.cfg.commands.num_commands)
         if WALK_STRAIGHT:
-            self.command[0] = 0.5
+            self.command[0] = 0.6
             self.command[2] = 0.25*0
 
         # init gripper
@@ -237,7 +238,7 @@ class DeployNode(Node):
     def lowlevel_state_cb(self, msg: LowState):
         # imu data
         imu_data = msg.imu_state
-        print(f"msg tick:{msg.tick/1000}")
+        # print(f"msg tick:{msg.tick/1000}")
         self.msg_tick = msg.tick/1000
         self.roll, self.pitch, self.yaw = imu_data.rpy
         self.obs_ang_vel = np.array(imu_data.gyroscope)*self.env.obs_scales.ang_vel
@@ -251,7 +252,6 @@ class DeployNode(Node):
         joint_vel = [msg.motor_state[i].dq for i in range(LEG_DOF)]
         obs_joint_vel = np.array(joint_vel) * self.env.obs_scales.dof_vel
         self.obs_joint_vel = np.append(obs_joint_vel, 0.0)
-
         # foot force data
         # policy feet names:['FR_foot', 'FL_foot', 'RR_foot', 'RL_foot']
         # robot feet names:['FR_foot', 'FL_foot', 'RR_foot', 'RL_foot']
@@ -290,7 +290,8 @@ class DeployNode(Node):
     def motor_timer_callback(self):
         if self.stand_up:
             self.cmd_msg.crc = get_crc(self.cmd_msg)
-            self.motor_pub.publish(self.cmd_msg)
+            if not NO_MOTOR:
+                self.motor_pub.publish(self.cmd_msg)
 
     def set_motor_position(
         self,
@@ -316,9 +317,9 @@ class DeployNode(Node):
         # load policy
         self.obs = torch.zeros(1, self.env.obs_buf_dim, device=self.env.device)
         file_pth = os.path.dirname(os.path.realpath(__file__))
-        self.policy = torch.jit.load(os.path.join(file_pth, "105-16-11000-base_jit.pt"), map_location=self.env.device)#101-95 000-94-8000 100-92-19500- 100-91-7000 100-03 
+        self.policy = torch.jit.load(os.path.join(file_pth, "./ckpt/100-33-18500-base_jit.pt"), map_location=self.env.device)#101-95 000-94-8000 100-92-19500- 100-91-7000 100-03 
         self.policy.to(self.env.device)
-        actions = self.policy(self.obs.detach(), torch.zeros(1,32, device=self.env.device))  # first inference takes longer time
+        actions = self.policy(self.obs, torch.zeros(1,32, device=self.env.device))  # first inference takes longer time
 
         # init p_gains, d_gains, torque_limits, default_dof_pos_all
         for i in range(LEG_DOF):
@@ -360,12 +361,16 @@ class DeployNode(Node):
                 kp = (1 - time_ratio) * stand_kp + time_ratio * float(self.env.p_gains[0])
                 kd = (1 - time_ratio) * stand_kd + time_ratio * float(self.env.d_gains[0])
                 self.set_gains(kp=kp, kd=kd)
+            elif time.monotonic() - self.start_time < stand_up_time * 3 + 0.005:
+                self.get_logger().info(f"ready to start policy")
+
             self.cmd_msg.crc = get_crc(self.cmd_msg)
-            self.motor_pub.publish(self.cmd_msg)
+            if not NO_MOTOR:
+                self.motor_pub.publish(self.cmd_msg)
             rclpy.spin_once(self)
             
-            if hasattr(self,'msg_tick'):
-                print(f"obs tick:{self.msg_tick}")
+            # if hasattr(self,'msg_tick'):
+            #     print(f"obs tick:{self.msg_tick}")
         
         cnt = 0
         fps_ck = time.monotonic()
@@ -384,16 +389,28 @@ class DeployNode(Node):
                 # policy inference
                 self.delta_yaw = np.array([self.command[2]])
                 self.delta_pitch = np.array([self.command[3] - self.pitch]) #np.array([0])
-                self.obs_proprio = np.concatenate((self.obs_ang_vel, self.obs_imu, [0], self.delta_pitch, self.command, \
+                self.obs_proprio = np.concatenate(([-1], self.obs_ang_vel, self.obs_imu, [0], self.delta_pitch, self.command, \
                                                 self.obs_joint_pos, self.obs_joint_vel, self.prev_action, 0*self.obs_foot_contact))
-                
+                # self.obs_proprio = np.array([-1.00000000e+00, -1.59789645e-03, -1.59789645e-03, -4.26105736e-03,
+                #     -1.46267600e-02,  1.57248974e-02,  0.00000000e+00, -1.57248974e-02,
+                #         8.00000000e-01,  0.00000000e+00,  0.00000000e+00,  0.00000000e+00,
+                #         4.34341207e-02,  4.78153825e-02, -1.23036981e-01, -3.49564403e-02,
+                #     -4.35274839e-03, -1.28865957e-01,  6.48352653e-02,  2.95356512e-02,
+                #     -5.55679798e-02, -6.63188472e-02,  1.14903450e-02, -1.15091085e-01,
+                #     -4.00000000e-02,  5.81328571e-04, -1.16265714e-03,  1.01100618e-04,
+                #         1.35643333e-03, -7.75104761e-04,  1.01100625e-03, -2.32531428e-03,
+                #     -1.55020952e-03,  4.04402474e-04, -1.35643333e-03, -3.87552381e-04,
+                #     -7.07704341e-04,  0.00000000e+00,  2.94919276e+00,  3.70014608e-01,
+                #         8.49897194e+00,  7.31491148e-02,  3.46814066e-01, -9.27761197e-02,
+                #     -6.81187987e-01, -8.99115682e-01, -2.48833990e+00, -1.18636012e-01,
+                #         2.56737685e+00,  1.33327454e-01, -5.43424034e+01,  0.00000000e+00,
+                #     -0.00000000e+00,  0.00000000e+00,  0.00000000e+00])
                 self.obs = self.env.compute_observations(self.obs_proprio)
 
-                # depth_latent_test = np.array([-0.0893, -0.8894,  0.2022,  0.9225, -0.2467,  0.1751, -0.0564,  0.1091,
-                #     -0.2128,  0.7953,  0.3242,  0.2088,  0.2267,  0.1037,  0.2565, -0.0339,
-                #     -0.9887,  0.2621,  0.0845, -0.7242, -0.3818,  0.0784,  0.1277, -0.7304,
-                #     0.0136,  0.1669,  0.0916, -0.1428, -0.9189,  0.8611,  0.1624, -0.2422])
-                # depth_latent = torch.from_numpy(depth_latent_test).unsqueeze(0).float()
+                # depth_latent = torch.tensor([[ 0.5534,  0.9367, -0.5928, -0.9057,  0.9920,  0.9834,  0.9989,  0.9913,
+                #     -0.6760,  0.9490,  0.6417, -0.9701, -0.7825,  0.8949, -0.9638, -0.9998,
+                #     0.9811, -0.5608, -0.8833,  0.5882,  0.0769,  0.9788,  0.3382, -0.9965,
+                #     0.9914, -0.3694,  0.0344,  0.8892, -0.9260,  0.9578,  0.8858, -0.6454]],device=self.env.device)
                 depth_latent = torch.from_numpy(self.depth_sock.depth_latent).unsqueeze(0).float()
                 depth_latent = depth_latent.to(self.env.device)
 
@@ -401,7 +418,8 @@ class DeployNode(Node):
                     self.init_buffer += 1
                     actions = self.policy(self.obs.detach(), depth_latent) # warmup for the policy
                     self.set_motor_position(q=self.env.default_dof_pos_np)
-                    self.motor_pub.publish(self.cmd_msg)
+                    if not NO_MOTOR:
+                        self.motor_pub.publish(self.cmd_msg)
                 else:
                     actions = self.policy(self.obs.detach(), depth_latent) #self.policy(self.obs.detach())
                     self.depth_sock.send_prop(self.obs_proprio)
@@ -415,13 +433,16 @@ class DeployNode(Node):
                         self.get_logger().info("Stop due to long inference time or disconnection")
                         self.set_gains(0.0,0.6)
                         raise SystemExit
-                        
-                    # time.sleep(max(0.01-time.monotonic()+start_time,0))
+                    
+                    while 0.010-time.monotonic()+start_time>0:
+                        pass
+
                     self.set_motor_position(self.angles.cpu().detach().numpy()[0])
                     self.cmd_msg.crc = get_crc(self.cmd_msg)
-                    self.motor_pub.publish(self.cmd_msg)
+                    if not NO_MOTOR:
+                        self.motor_pub.publish(self.cmd_msg)
 
-
+            
             self.get_logger().info(f"loop time: {time.monotonic()-start_time}")
             while 0.020-time.monotonic()+start_time>0:
                 pass
@@ -494,7 +515,8 @@ class DeployNode(Node):
         elif self.start_policy:
             self.set_motor_position(self.rec_cmd[self.replay_i])
             self.cmd_msg.crc = get_crc(self.cmd_msg)
-            self.motor_pub.publish(self.cmd_msg)
+            if not NO_MOTOR:
+                self.motor_pub.publish(self.cmd_msg)
 
             self.time_hist.append(time.monotonic()-self.start_time)
             self.angle_hist.append(self.rec_cmd[self.replay_i])

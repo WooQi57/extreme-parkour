@@ -45,9 +45,12 @@ def encode_depth_extrinsics(depth_output):
 def process_and_resize(frame):
     frame = np.copy(frame)
     
+    # # flip the frame upside down
+    # frame = cv2.flip(frame, 0)
+    
     # Remove 30 pixels from the left and 20 from the top
-    frame = frame[:, 30:-30]
-    frame = frame[:-20, :]
+    frame = frame[:, 20:-20]  #30:-30
+    frame = frame[:-34, :]  #-20
     
     frame = cv2.resize(frame, dsize=(87, 58), interpolation=cv2.INTER_CUBIC)
     # frame -= 0.02

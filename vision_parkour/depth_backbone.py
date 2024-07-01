@@ -42,7 +42,7 @@ class RecurrentDepthBackbone(nn.Module):
         self.base_backbone = base_backbone
         if env_cfg == None:
             self.combination_mlp = nn.Sequential(
-                                    nn.Linear(32 + 54, 128),
+                                    nn.Linear(32 + 55, 128),
                                     activation,
                                     nn.Linear(128, 32)
                                 )
@@ -71,12 +71,12 @@ class RecurrentDepthBackbone(nn.Module):
     #     self.hidden_states = self.hidden_states.detach().clone()
 
 class HardwareVisionNN(nn.Module):
-    def __init__(self,  num_prop=53,
+    def __init__(self,  num_prop=55,
                         num_scan=132,
                         num_priv_latent=29, 
                         num_priv_explicit=9,
                         num_hist=10,
-                        num_actions=12,
+                        num_actions=13,
                         # tanh,
                         actor_hidden_dims=[512, 256, 128],
                         scan_encoder_dims=[128, 64, 32],

@@ -33,6 +33,7 @@ WALK_STRAIGHT = False
 USE_TIMER = False
 PLOT_DATA = False
 USE_GRIPPPER = True
+NO_MOTOR = False
 
 if USE_GRIPPPER:
     from dynamixel_sdk_custom_interfaces.msg import SetPosition
@@ -251,7 +252,8 @@ class DeployNode(Node):
     def motor_timer_callback(self):
         if self.stand_up:
             self.cmd_msg.crc = get_crc(self.cmd_msg)
-            self.motor_pub.publish(self.cmd_msg)
+            if not NO_MOTOR:
+                self.motor_pub.publish(self.cmd_msg)
 
     def set_motor_position(
         self,
@@ -322,7 +324,8 @@ class DeployNode(Node):
                 kd = (1 - time_ratio) * stand_kd + time_ratio * float(self.env.d_gains[0])
                 self.set_gains(kp=kp, kd=kd)
             self.cmd_msg.crc = get_crc(self.cmd_msg)
-            self.motor_pub.publish(self.cmd_msg)
+            if not NO_MOTOR:
+                self.motor_pub.publish(self.cmd_msg)
             rclpy.spin_once(self)
 
                 
@@ -350,7 +353,8 @@ class DeployNode(Node):
                     time.sleep(max(0.01-time.monotonic()+start_time,0))
                     self.set_motor_position(self.angles.cpu().detach().numpy()[0])
                     self.cmd_msg.crc = get_crc(self.cmd_msg)
-                    self.motor_pub.publish(self.cmd_msg)
+                    if not NO_MOTOR:
+                        self.motor_pub.publish(self.cmd_msg)
 
 
             rclpy.spin_once(self)
@@ -418,7 +422,8 @@ class DeployNode(Node):
         elif self.start_policy:
             self.set_motor_position(self.rec_cmd[self.replay_i])
             self.cmd_msg.crc = get_crc(self.cmd_msg)
-            self.motor_pub.publish(self.cmd_msg)
+            if not NO_MOTOR:
+                self.motor_pub.publish(self.cmd_msg)
 
             self.time_hist.append(time.monotonic()-self.start_time)
             self.angle_hist.append(self.rec_cmd[self.replay_i])

@@ -13,10 +13,9 @@ import os
 
 def process_and_resize(frame):
     frame = np.copy(frame)
-    
     # Remove 30 pixels from the left and 20 from the top
-    frame = frame[:, 30:-30]
-    frame = frame[11:-21, :]
+    frame = frame[:, 20:-20]  #30:-30
+    frame = frame[:-5, :]  #-20
     
     frame = cv2.resize(frame, dsize=(87, 58), interpolation=cv2.INTER_CUBIC)
     frame = np.clip(frame, 0., 2)

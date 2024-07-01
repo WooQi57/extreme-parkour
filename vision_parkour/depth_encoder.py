@@ -14,19 +14,20 @@ import matplotlib.pyplot as plt
 import multiprocessing as mp
 from multiprocessing import Process, Array, Value
 from depth_backbone import HardwareVisionNN
-
+from tqdm import tqdm
 
 class DepthSocket():
     def __init__(self):
-        self.n_proprio = 54
+        self.n_proprio = 55
         self.send_addr = "127.0.0.1"
         self.send_port = 5702
         self.count = 0
         
         self.sock_recv = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock_recv.bind(("127.0.0.1", 5703))
+        self.sock_recv.bind(("127.0.0.1", 5701))
         self._prop = Array('f', np.zeros((self.n_proprio, )))
         self.receive_thread = Process(target=self.recv, args=(self._prop,))
+        self.receive_thread.daemon = True
         self.receive_thread.start()
 
     def recv(self, _prop):
@@ -35,6 +36,7 @@ class DepthSocket():
             data = data.decode("utf-8")
             data_list = data.split(",")
             _prop[:] = np.array(list(map(float, data_list)))[:]
+        self.sock_recv.close()
             
     @property
     def proprio(self):
@@ -54,7 +56,7 @@ class DepthSocket():
 depth_sock = DepthSocket()
 backbone_model = HardwareVisionNN()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-load_path = "105-16-11000-vision_weight.pt"
+load_path = "./ckpt/100-33-18500-vision_weight.pt"
 
 ac_state_dict = torch.load(load_path, map_location=device)
 backbone_model.depth_encoder.load_state_dict(ac_state_dict['depth_encoder_state_dict'])
@@ -66,17 +68,17 @@ DEPTH_UPDATE_INTERVAL = 0.1
 # Create a context object. This object owns the handles to all connected realsense devices
 pipeline = rs.pipeline()
 config = rs.config()
-# depth_to_disparity = rs.disparity_transform(True)
-# disparity_to_depth = rs.disparity_transform(False)
-# decimation = rs.decimation_filter()
-# decimation.set_option(rs.option.filter_magnitude, 4)
-# spatial = rs.spatial_filter()
-# spatial.set_option(rs.option.filter_magnitude, 5)
-# spatial.set_option(rs.option.filter_smooth_alpha, 1)
-# spatial.set_option(rs.option.filter_smooth_delta, 50)
-# spatial.set_option(rs.option.holes_fill, 3)
-# hole_filling = rs.hole_filling_filter()
-config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16,30)
+depth_to_disparity = rs.disparity_transform(True)
+disparity_to_depth = rs.disparity_transform(False)
+decimation = rs.decimation_filter()
+decimation.set_option(rs.option.filter_magnitude, 4)
+spatial = rs.spatial_filter()
+spatial.set_option(rs.option.filter_magnitude, 5)
+spatial.set_option(rs.option.filter_smooth_alpha, 1)
+spatial.set_option(rs.option.filter_smooth_delta, 50)
+spatial.set_option(rs.option.holes_fill, 3)
+hole_filling = rs.hole_filling_filter()
+config.enable_stream(rs.stream.depth, 848, 480, rs.format.z16, 30)
 profile = pipeline.start(config)
 depth_scale = profile.get_device().first_depth_sensor().get_depth_scale()
 prop_q = deque(maxlen=50)
@@ -108,7 +110,9 @@ filename = "depth_latent.txt"
 if os.path.exists(filename):
     os.remove(filename)
 
-while True:
+depth_images = []
+
+for i in tqdm(range(10000)):
     # Create a pipeline object. This object configures the streaming camera and owns it's handle
     start = time.time()
     ctr += 1
@@ -128,24 +132,23 @@ while True:
         else:
             start = time.time()
             # print("Frame_received_time, ", time.time() - frame_received_time)
-            print("Frequency: ", 1 / (time.time() - frame_received_time))
             frame_received_time = time.time()
             
-            # frame = decimation.process(frame)
-            # frame = depth_to_disparity.process(frame)
-            # frame = spatial.process(frame)
-            # #frame = temporal.process(frame)
-            # frame = disparity_to_depth.process(frame)
-            # frame = hole_filling.process(frame)
+            frame = decimation.process(frame)
+            frame = depth_to_disparity.process(frame)
+            frame = spatial.process(frame)
+            #frame = temporal.process(frame)
+            frame = disparity_to_depth.process(frame)
+            frame = hole_filling.process(frame)
 
             np_frame = (np.asanyarray(frame.get_data()) * depth_scale)
             low_res = process_and_resize(np_frame)
+            depth_images.append(low_res)
             depth_image = torch.from_numpy(np.array(low_res)).float().to(device)
             # fake_depth_image = np.load("frames_npy/np_frame_50.npy")
             # print(fake_depth_image.shape)
             # depth_image = torch.from_numpy(fake_depth_image).float().to(device)
             obs = torch.from_numpy(depth_sock.proprio[None, :]).float().to(device)
-            obs[:, 5] = 0
             # print(obs)
             depth_latent_np = backbone_model(obs, depth_image[None,:,:]).detach().cpu().numpy().squeeze()
             
@@ -153,8 +156,7 @@ while True:
             duration = frame_send_time - start
             if duration <= 0.09:
                 time.sleep(0.09 - duration)
-            print("Image duration, ", time.time()-start)
-            #print(duration)
+            # print("Image duration, ", time.time()-start)
             depth_sock.send_latent(depth_latent_np)
 
             # cv2.namedWindow("name", cv2.WINDOW_NORMAL)
@@ -172,6 +174,18 @@ while True:
             
 
 
+plt.imsave("first_frame.png", depth_images[0], vmin=-2, vmax=2, cmap='gray')
 
-pipeline.stop()
+# Linear transformation to convert values to 0-255 range
+frames = [(frame + 0.5) * 255 for frame in depth_images]
 
+# Define the codec and create a VideoWriter object
+fourcc = cv2.VideoWriter_fourcc(*'XVID')
+out = cv2.VideoWriter('output.avi', fourcc, 10.0, (frames[0].shape[1], frames[0].shape[0]), isColor=False)
+
+# Write each frame to the video
+for frame in frames:
+    out.write(np.uint8(frame))
+
+# Release the VideoWriter object
+out.release()

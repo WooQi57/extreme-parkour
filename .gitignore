@@ -2,4 +2,7 @@ isaacgym*
 .ipynb_checkpoints/
 .vscode/
 *img
+frames/
+frames_npy/
 __pycache__/
+*.pt
