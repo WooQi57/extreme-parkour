@@ -84,7 +84,7 @@ class OnPolicyRunner:
                                                     self.depth_encoder_cfg["hidden_dims"],
                                                     )
             depth_encoder = RecurrentDepthBackbone(depth_backbone, env.cfg).to(self.device)
-            # depth_actor = deepcopy(actor_critic.actor)  # bug. not understand why deepcopy doesn't work
+            # depth_actor = deepcopy(actor_critic.actor)  #
             depth_actor = Actor(self.env.cfg.env.n_proprio,self.env.cfg.env.n_scan, self.env.num_actions, self.policy_cfg["scan_encoder_dims"], self.policy_cfg["actor_hidden_dims"], self.policy_cfg["priv_encoder_dims"], self.env.cfg.env.n_priv_latent, self.env.cfg.env.n_priv, self.env.cfg.env.history_len, get_activation('elu'), tanh_encoder_output=False).to(self.device)
             depth_actor.use_2ac = False
             depth_actor.depth_actor_use_actor1 = True
@@ -239,8 +239,9 @@ class OnPolicyRunner:
         # infos["delta_yaw_ok"] = torch.ones(self.env.num_envs, dtype=torch.bool, device=self.device)
         self.alg.depth_encoder.train()
         self.alg.depth_actor.train()
+        teacher_policy = self.get_inference_policy(self.device)
 
-        num_pretrain_iter = 0
+        num_pretrain_iter = 0  # 0
         for it in range(self.current_learning_iteration, tot_iter):
             start = time.time()
             depth_latent_buffer = []
@@ -269,7 +270,7 @@ class OnPolicyRunner:
                     # yaw_buffer_teacher.append(obs[:, 6:8])
                 
                 with torch.no_grad():
-                    actions_teacher = self.alg.actor_critic.act_inference(obs, hist_encoding=True, scandots_latent=None)
+                    actions_teacher = teacher_policy(obs, hist_encoding=True, scandots_latent=None)
                     actions_teacher_buffer.append(actions_teacher)
 
                 obs_student = obs.clone()
@@ -291,7 +292,15 @@ class OnPolicyRunner:
                 if it < num_pretrain_iter:
                     obs, privileged_obs, rewards, dones, infos = self.env.step(actions_teacher.detach())  # obs has changed to next_obs !! if done obs has been reset
                 else:
-                    obs, privileged_obs, rewards, dones, infos = self.env.step(actions_student.detach())  # obs has changed to next_obs !! if done obs has been reset
+                    # obs, privileged_obs, rewards, dones, infos = self.env.step(actions_student.detach())  # obs has changed to next_obs !! if done obs has been reset
+                    # first 1/3 of the time, use teacher actions, the rest use student actions
+                    teacher_fraction = 1/3
+                    num_teacher_actions_flat = int(actions_teacher.size(0)*teacher_fraction/2 )  # 1/6
+                    mid = int(actions_teacher.size(0)*0.5)  # 1/2
+                    num_teacher_actions_step = mid + num_teacher_actions_flat  # 1/6
+                    actions_mix = torch.cat((actions_teacher[:num_teacher_actions_flat], actions_student[num_teacher_actions_flat:mid],actions_teacher[mid:num_teacher_actions_step], actions_student[num_teacher_actions_step:]), dim=0)
+
+                    obs, privileged_obs, rewards, dones, infos = self.env.step(actions_mix.detach())  # obs has changed to next_obs !! if done obs has been reset
                 critic_obs = privileged_obs if privileged_obs is not None else obs
                 obs, critic_obs, rewards, dones = obs.to(self.device), critic_obs.to(self.device), rewards.to(self.device), dones.to(self.device)
 

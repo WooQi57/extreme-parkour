@@ -68,11 +68,11 @@ def play(args):
     # override some parameters for testing
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 1
-    env_cfg.env.num_envs = 2 if not args.save else 64  # 2
+    env_cfg.env.num_envs = 4 if not args.save else 64  # 2
     env_cfg.env.episode_length_s = 20 # 60 30  8
     env_cfg.commands.resampling_time = 6 # 60 10  2
     env_cfg.terrain.num_rows = 2
-    env_cfg.terrain.num_cols = 2
+    env_cfg.terrain.num_cols = 4
     env_cfg.terrain.height = [0.02, 0.02]
     env_cfg.terrain.terrain_dict = {
                                     "parkour_flat": 0.5,
@@ -85,7 +85,7 @@ def play(args):
     env_cfg.depth.angle = [27-0.1, 27+0.1]
     env_cfg.noise.add_noise = True
     env_cfg.domain_rand.randomize_friction = True
-    env_cfg.domain_rand.push_robots = True
+    env_cfg.domain_rand.push_robots = False
     env_cfg.domain_rand.push_interval_s = 2
     env_cfg.domain_rand.randomize_base_mass = False
     env_cfg.domain_rand.randomize_base_com = False
@@ -208,33 +208,33 @@ def play(args):
                         wait_for_page_load=True)
             web_viewer.write_vid()
 
-        # # store data for plot
-        # cur_time = env.episode_length_buf[env.lookat_id].item() / 50
-        # time_hist.append(cur_time)
-        # angle_hist.append(env.target_angles[env.lookat_id].tolist())
-        # dof_hist.append(env.dof_pos[env.lookat_id].tolist())
-        # # action_hist.append(actions[env.lookat_id].tolist())
+        # store data for plot
+        cur_time = env.episode_length_buf[env.lookat_id].item() / 50
+        time_hist.append(cur_time)
+        angle_hist.append(env.target_angles[env.lookat_id].tolist())
+        dof_hist.append(env.dof_pos[env.lookat_id].tolist())
+        # action_hist.append(actions[env.lookat_id].tolist())
 
-        # id = env.lookat_id
-        # if cur_time == 0 or i == 2*int(env.max_episode_length)-1:  #or (cur_time % env_cfg.commands.resampling_time)==0 
-        #     time_hist = np.array(time_hist[:-3])
-        #     angle_hist = np.array(angle_hist[:-3])
-        #     dof_hist = np.array(dof_hist[:-3])
-        #     # action_hist = np.array(action_hist[:-3])
-        #     for f in range(4):
-        #         fig,axs = plt.subplots(3,1,sharex=True)
-        #         for j in range(3):
-        #             axs[j].plot(time_hist, angle_hist[:,j+3*f], label=f'cmd{j}')
-        #             axs[j].plot(time_hist[:-1], dof_hist[1:,j+3*f], '--', label=f'real{j}')  # dof observe is actually one step earlier
-        #             axs[j].legend()
-        #             axs[j].grid(True, which='both', axis='both')
-        #             axs[j].minorticks_on()
-        #         plt.tight_layout()
+        id = env.lookat_id
+        if cur_time == 0 or i == 2*int(env.max_episode_length)-1:  #or (cur_time % env_cfg.commands.resampling_time)==0 
+            time_hist = np.array(time_hist[:-3])
+            angle_hist = np.array(angle_hist[:-3])
+            dof_hist = np.array(dof_hist[:-3])
+            # action_hist = np.array(action_hist[:-3])
+            for f in range(4):
+                fig,axs = plt.subplots(3,1,sharex=True)
+                for j in range(3):
+                    axs[j].plot(time_hist, angle_hist[:,j+3*f], label=f'cmd{j}')
+                    axs[j].plot(time_hist[:-1], dof_hist[1:,j+3*f], '--', label=f'real{j}')  # dof observe is actually one step earlier
+                    axs[j].legend()
+                    axs[j].grid(True, which='both', axis='both')
+                    axs[j].minorticks_on()
+                # plt.tight_layout()
                 # plt.savefig(f'../figs/cmd_following_{i}_{f}.png')
 
-            # time_hist = []
-            # angle_hist = []
-            # dof_hist = []
+            time_hist = []
+            angle_hist = []
+            dof_hist = []
 
 if __name__ == '__main__':
     EXPORT_POLICY = False

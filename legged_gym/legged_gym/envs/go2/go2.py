@@ -131,6 +131,7 @@ class Go2(BaseTask):
             if self.viewer:
                 self.delay = torch.tensor(self.cfg.domain_rand.action_delay_view, device=self.device, dtype=torch.float)
             indices = -self.delay -1
+            # print(f"{self.delay=}")
             actions = self.action_history_buf[:, indices.long()] # delay for 1/50=20ms
 
         self.global_counter += 1
@@ -213,7 +214,7 @@ class Go2(BaseTask):
         next_flag = self.reach_goal_timer > self.cfg.env.reach_goal_delay / self.dt
         self.cur_goal_idx[next_flag] += 1
         self.reach_goal_timer[next_flag] = 0
-
+        # print(f"{torch.norm(self.root_states[:, :2] - self.cur_goals[:, :2], dim=1)}")
         self.reached_goal_ids = torch.norm(self.root_states[:, :2] - self.cur_goals[:, :2], dim=1) < self.cfg.env.next_goal_threshold
         self.reach_goal_timer[self.reached_goal_ids] += 1
 
@@ -291,7 +292,7 @@ class Go2(BaseTask):
             self.gym.clear_lines(self.viewer)
             # self._draw_height_samples()
             self._draw_goals()
-            self._draw_feet()
+            # self._draw_feet()
             if self.cfg.depth.use_camera:
                 window_name = "Depth Image"
                 cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
@@ -316,7 +317,8 @@ class Go2(BaseTask):
         roll_cutoff = torch.abs(self.roll) > 1.2
         pitch_cutoff = torch.abs(self.pitch) > 1.3
         reach_goal_cutoff = self.cur_goal_idx >= self.cfg.terrain.num_goals
-        height_cutoff = self.root_states[:, 2] < -0.25
+        height_cutoff = self.root_states[:, 2] < 0.2  #-0.25
+        # print(f"{self.root_states[:, 2]=}")
 
         self.time_out_buf = self.episode_length_buf > self.max_episode_length # no terminal reward for time-outs
         self.time_out_buf |= reach_goal_cutoff
@@ -452,8 +454,24 @@ class Go2(BaseTask):
         dof_vel[:,-2]=0  # gripper dof same as real
         dof_pos[:,-2]=-0.04  # gripper dof same as real
         
+        # print(f"{self.root_states[:, :2]-self.env_origins[:,:2]}")
+        class_ind = self.env_class.clone()
+        if self.cfg.depth.use_camera or True:
+            # use flat policy for teacher before reaching to the stairs
+            x_dist = self.root_states[:, 0]-self.env_origins[:,0]
+            body_pos_xy = ((self.root_states[:, :2] + self.terrain.cfg.border_size) / self.cfg.terrain.horizontal_scale).round().long()  # (num_envs, 2)
+            body_pos_x = body_pos_xy[:,0].unsqueeze(1).expand(-1,2*self.half_window_size+1)+self.edge_indices
+            body_pos_x = torch.clip(body_pos_x, 0, self.x_edge_mask.shape[0]-1)
+            body_pos_y = body_pos_xy[:,1].unsqueeze(1).expand(-1,2*self.half_window_size+1)+self.edge_indices
+            body_pos_y = torch.clip(body_pos_y, 0, self.x_edge_mask.shape[1]-1)
+            body_at_edge = torch.any(self.x_edge_mask[body_pos_x, body_pos_y], dim=1)
+
+            mask = (class_ind == 1) & (x_dist < 2.5)
+            class_ind[mask] = 0
+            # print(f"{class_ind=}")
+
         obs_buf = torch.cat((#skill_vector, 
-                            self.env_class.unsqueeze(1),  #[1,1]
+                            class_ind.unsqueeze(1),  #[1,1]
                             base_ang_vel  * self.obs_scales.ang_vel,   #[1,3]
                             imu_obs,    #[1,2]
                             self.delta_z[:, None],  #[1,1]
@@ -657,11 +675,17 @@ class Go2(BaseTask):
         self.commands[env_ids, :2] *= torch.abs(self.commands[env_ids, :2]) > self.cfg.commands.lin_vel_clip
         self.commands[env_ids, 2:4] *= torch.abs(self.commands[env_ids, 2:4]) > self.cfg.commands.ang_clip
 
-        # set commands to zero for parkour
+        # randomly set vy and pitch commands to zero
+        # rand_vy_pitch = torch_rand_float(0, 1, (len(env_ids), 1), device=self.device).squeeze(1) > 0.5
+        # self.commands[env_ids, 1] *= rand_vy_pitch
+        # self.commands[env_ids, 3] *= rand_vy_pitch
+
         # self.commands[env_ids, 0] *= (self.env_class[env_ids] != 0)*torch.sign(self.commands[env_ids, 0]) + (self.env_class[env_ids] == 0) # positive for parkour
         # self.commands*=0
-        # self.commands[:, 0]=0.7
+        # self.commands[:, 0]=0.8
+        # self.commands[:, 3]=0.45
         
+        # set commands to zero for parkour
         self.commands[env_ids, 1:] *= (self.env_class[env_ids] == 0).unsqueeze(1)
         # print(f"{self.commands=}")
 
@@ -1431,7 +1455,7 @@ class Go2(BaseTask):
         return rew
 
     def _reward_tracking_pitch(self):
-        rew = torch.exp(-5*torch.abs(self.commands[:, 3] - self.pitch))
+        rew = torch.exp(-torch.abs(self.commands[:, 3] - self.pitch))
         rew[self.env_class != 0] = 0.
         # print(f"{rew=}")
         # print(f"{self.pitch=}")
@@ -1462,15 +1486,18 @@ class Go2(BaseTask):
         return rew
 
     def _reward_dof_acc(self):
+        # print(f"dof acc: {torch.sum(torch.square((self.last_dof_vel - self.dof_vel) / self.dt), dim=1)}")
         return torch.sum(torch.square((self.last_dof_vel - self.dof_vel) / self.dt), dim=1)
 
     def _reward_collision(self):
         return torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)
 
     def _reward_action_rate(self):
+        # print(f"action rate: {torch.norm(self.last_actions - self.actions, dim=1)}")
         return torch.norm(self.last_actions - self.actions, dim=1)
 
     def _reward_delta_torques(self):
+        # print(f"delta torques: {torch.sum(torch.square(self.torques - self.last_torques), dim=1)}")
         return torch.sum(torch.square(self.torques - self.last_torques), dim=1)
     
     def _reward_torques(self):

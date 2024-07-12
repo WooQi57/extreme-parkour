@@ -1,15 +1,15 @@
 #!/bin/bash
 #
-#SBATCH --job-name="103-32-cam2ac"
+#SBATCH --job-name="102-43-cam2ac"
 #SBATCH --partition=iris-hi
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/103-32-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/102-43-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
-#SBATCH --time=48:00:00 # Max job length is 2 day
+#SBATCH --time=72:00:00 # Max job length is 3 day
 #SBATCH --nodes=1 # Only use one node (machine)
 #SBATCH --mem=32G
-#SBATCH --exclude=iris-hp-z8,iris1,iris2,iris3,iris4
+#SBATCH --exclude=iris-hp-z8,iris1,iris2,iris3,iris4,iris-hgx-1
 
 ###SBATCH --mem-per-cpu=2G
 
@@ -32,13 +32,26 @@ echo "
 --------------------------------------------
 task description:
     # use cam
-    # use 101-32
+    use 100-43 
+    num_pretrain_iter = 0
+    use 1/3 of teacher's actions for both flat and steps
+    no curriculum, step_height=0.1 + 0.45*difficulty
+    terrain: use flat teacher before reaching edges!.
+    eval model?
 
-    Pitch reward use exp(-5*err)
+    # flat only, curriculum terrain=False
+    lin_vel_clip = 0.2
+    reward action_rate = -0.2
+    delta_torques = -2*5.0e-4
+    pitch = [-0.3, 0.45]
+    action_curr_step = [1,1] #[0, 1, 2, 0,] every 2000
+    # randomly set vy and pitch commands to zero
+    collision 20
+    Pitch reward use exp(-*err) 1.5
     Penalize gripper contact only
     Reward dof_error = -0.2
     Reward ang_vel_xy = -0.12 
-    Friction [0.6, 8.]
+    Friction [0.6, 5.]
     torch.abs(torch.pow(self.torques, 3))
     # reward torques = -0.00001*10
     use actual pushes
@@ -56,7 +69,7 @@ task description:
     from scratch again
     cur_threshold_lo = 6.5
     step x range should be greater than 0.5
-    step_height=0.1 + 0.45*difficulty
+    step_height=0.4 + 0.15*difficulty
     found bug: obs_prop_depth[:, 5] = 0
     rest_offset = 0.01  # looks better in render if 0.005
     low y_range
@@ -94,9 +107,9 @@ task description:
 --------------------------------------------
 --------------------------------------------
 --------------------------------------------" 
-# --resume --resumeid 100-23 --use_camera 
+# --resume --resumeid 101-32 --use_camera 
 
-srun bash -c '/iris/u/wuqi23/anaconda3/envs/doggy/bin/python train.py  --task go2 --exptid 103-32-2ac  --device cuda:0 
+srun bash -c '/iris/u/wuqi23/anaconda3/envs/doggy/bin/python train.py  --task go2 --exptid 102-43-2ac --resume --resumeid 100-43 --checkpoint 3000  --use_camera  --device cuda:0 
 '
 
 # done

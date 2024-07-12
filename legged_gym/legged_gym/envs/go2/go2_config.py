@@ -136,16 +136,16 @@ class Go2RoughCfg( LeggedRobotCfg ):
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
 
     class domain_rand( LeggedRobotCfg.domain_rand):
-        friction_range = [0.6, 8.]  # 0.6 2 6?
+        friction_range = [0.6, 5.]  # 0.6 2 6?  0.6-8
         push_robots = True
         push_interval_s = 8
         max_push_vel_xy = 0.5
         max_push_vel_z = 0.5 #0.1
 
-        delay_update_global_steps = 24 * 8000  #8000 3000
+        delay_update_global_steps = 24 * 2000  #8000 3000
         action_delay = True
-        action_curr_step = [1, 1]#, 0, 2, 1]
-        action_curr_step_scratch = [0, 1]
+        action_curr_step = [1,1] #[0, 1, 2, 0, 1]
+        action_curr_step_scratch = action_curr_step #[0, 1]
         action_delay_view = 1
         action_buf_len = 8
   
@@ -159,17 +159,17 @@ class Go2RoughCfg( LeggedRobotCfg ):
             tracking_yaw_vel = 1.5  # 0.5
             tracking_z = 0.05*0
             lin_vel_z_parkour = 0.5
-            tracking_pitch = 1.5 #1.
+            tracking_pitch = 1.5 #1. 1.5
             terrain_level = 0.1
 
             # regularization rewards
             lin_vel_z_walking = -1.0  # for walking only
             ang_vel_xy = -0.12 #-0.05
-            orientation = -1.
+            # orientation = -1.
             dof_acc = -2.5e-7
-            collision = -10.  # -5
-            action_rate = -0.1
-            delta_torques = -1.0e-7
+            collision = -10.  # -5, -10  -20
+            action_rate = -0.2  # -0.1
+            delta_torques = -5.0e-4 #-1.0e-7
             torques = -0.00001*1
             hip_pos = -0.5
             dof_error = -0.2 # -0.04
@@ -200,9 +200,9 @@ class Go2RoughCfg( LeggedRobotCfg ):
             lin_vel_x_parkour = [0.5, 1.2] # min max [m/s]
             lin_vel_y = [-0.5, 0.5]   # min max [m/s]
             omega = [-0.7, 0.7]    # min max [rad/s]
-            pitch = [-0.7, 0.7]  # min max [rad]
-        lin_vel_clip = 0.02  #0.2
-        ang_clip = 0.05
+            pitch = [-0.3, 0.45]  # min max [rad]
+        lin_vel_clip = 0.02  #0.2 0.02 0.05
+        ang_clip = 0.05  # same for pitch and omega
 
     class sim (LeggedRobotCfg.sim):
         dt =  0.005
@@ -216,7 +216,7 @@ class Go2RoughCfg( LeggedRobotCfg ):
             num_position_iterations = 4
             num_velocity_iterations = 0
             contact_offset = 0.01  # [m]
-            rest_offset = 0.01   # 0.0 [m]
+            rest_offset = 0.01   # 0.0 [m] 0.01
             bounce_threshold_velocity = 0.5 #0.5 [m/s]
             max_depenetration_velocity = 1.0
             max_gpu_contact_pairs = 2**23 #2**24 -> needed for 8000 envs and more
@@ -224,13 +224,15 @@ class Go2RoughCfg( LeggedRobotCfg ):
             contact_collection = 2 # 0: never, 1: last sub-step, 2: all sub-steps (default=2)
         
 class Go2RoughCfgPPO( LeggedRobotCfgPPO ):
+    class policy( LeggedRobotCfgPPO.policy ):
+        continue_from_last_std = True
     class algorithm( LeggedRobotCfgPPO.algorithm ):
         entropy_coef = 0.01  # 0 0.01
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'go2'
         resume = False
-        max_iterations = 20000 # number of policy updates 50000
+        max_iterations = 50000 # number of policy updates 50000
 
     class estimator( LeggedRobotCfgPPO.estimator):
         priv_states_dim = Go2RoughCfg.env.n_priv
