@@ -227,7 +227,7 @@ class DeployNode(Node):
         if msg.keys == 16 and USE_GRIPPPER: # R2 open gripper
             self.gripper_msg.position = 1500
 
-        cmd_vx = msg.ly * 0.8 if msg.ly > 0 else msg.ly * 0.3
+        cmd_vx = msg.ly * 1. if msg.ly > 0 else msg.ly * 0.3  # 0.8
         cmd_vy = msg.lx * -0.5  # 0.5
         cmd_delta_yaw = msg.rx * -0.8  # 0.5 1  0.6
         cmd_pitch = msg.ry * 0.7  # 0.7
@@ -317,7 +317,7 @@ class DeployNode(Node):
         # load policy
         self.obs = torch.zeros(1, self.env.obs_buf_dim, device=self.env.device)
         file_pth = os.path.dirname(os.path.realpath(__file__))
-        self.policy = torch.jit.load(os.path.join(file_pth, "./ckpt/100-33-18500-base_jit.pt"), map_location=self.env.device)#101-95 000-94-8000 100-92-19500- 100-91-7000 100-03 
+        self.policy = torch.jit.load(os.path.join(file_pth, "./ckpt/104-56-2400-base_jit.pt"), map_location=self.env.device)#101-95 000-94-8000 100-92-19500- 100-91-7000 100-03  102-28 103-28
         self.policy.to(self.env.device)
         actions = self.policy(self.obs, torch.zeros(1,32, device=self.env.device))  # first inference takes longer time
 
@@ -379,11 +379,11 @@ class DeployNode(Node):
             start_time = time.monotonic()
             rclpy.spin_once(self)
             while self.msg_tick == self.obs_tick:
-                print(f"respin. Only found:{self.msg_tick}")
+                # print(f"respin. Only found:{self.msg_tick}")
                 rclpy.spin_once(self)
 
             self.obs_tick = self.msg_tick
-            print(f"obs tick:{self.obs_tick}")
+            # print(f"obs tick:{self.obs_tick}")
 
             if self.start_policy:
                 # policy inference
@@ -405,7 +405,7 @@ class DeployNode(Node):
                 #     -6.81187987e-01, -8.99115682e-01, -2.48833990e+00, -1.18636012e-01,
                 #         2.56737685e+00,  1.33327454e-01, -5.43424034e+01,  0.00000000e+00,
                 #     -0.00000000e+00,  0.00000000e+00,  0.00000000e+00])
-                self.obs = self.env.compute_observations(self.obs_proprio)
+                self.obs = self.env.compute_observations(self.obs_proprio)  # hist class is 0
 
                 # depth_latent = torch.tensor([[ 0.5534,  0.9367, -0.5928, -0.9057,  0.9920,  0.9834,  0.9989,  0.9913,
                 #     -0.6760,  0.9490,  0.6417, -0.9701, -0.7825,  0.8949, -0.9638, -0.9998,
@@ -425,9 +425,10 @@ class DeployNode(Node):
                     self.depth_sock.send_prop(self.obs_proprio)
                     self.prev_action = actions.clone().detach().cpu().numpy().squeeze(0)
                     self.angles = self.env.compute_angle(actions)
-                    self.time_hist.append(time.monotonic()-self.start_time)
-                    self.angle_hist.append(self.angles[0].tolist())
-                    self.action_hist.append(actions[0].tolist())
+                    if PLOT_DATA:
+                        self.time_hist.append(time.monotonic()-self.start_time)
+                        self.angle_hist.append(self.angles[0].tolist())
+                        self.action_hist.append(actions[0].tolist())
                     self.get_logger().info(f"inference time: {time.monotonic()-start_time}")
                     if time.monotonic()-start_time > 0.1:
                         self.get_logger().info("Stop due to long inference time or disconnection")
@@ -500,9 +501,10 @@ class DeployNode(Node):
                 actions = self.policy(self.obs.detach())
                 self.prev_action = actions.clone().detach().cpu().numpy().squeeze(0)
                 self.angles = self.env.compute_angle(actions)
-                self.time_hist.append(time.monotonic()-self.start_time)
-                self.angle_hist.append(self.angles[0].tolist())
-                self.action_hist.append(actions[0].tolist())
+                if PLOT_DATA:
+                    self.time_hist.append(time.monotonic()-self.start_time)
+                    self.angle_hist.append(self.angles[0].tolist())
+                    self.action_hist.append(actions[0].tolist())
                 self.get_logger().info(f"inference time: {time.monotonic()-start_time}")
                 # self.get_logger().info(f"angles: {self.angles[0]}")
                 self.set_motor_position(self.angles.cpu().detach().numpy()[0])

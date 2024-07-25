@@ -98,6 +98,8 @@ class Hardware():
         #                     'RL_hip_joint', 'RL_thigh_joint', 'RL_calf_joint', 'RR_hip_joint', 'RR_thigh_joint', 'RR_calf_joint']
         self.dof_names =  ['FR_hip_joint', 'FR_thigh_joint', 'FR_calf_joint', 'FL_hip_joint', 'FL_thigh_joint', 'FL_calf_joint',\
                             'RR_hip_joint', 'RR_thigh_joint', 'RR_calf_joint', 'RL_hip_joint', 'RL_thigh_joint', 'RL_calf_joint']        
+        self.joint_lo = torch.tensor([-1.0472,-1.5708,-2.7227,-1.0472,-1.5708,-2.7227,-1.0472,-0.5236,-2.7227,-1.0472,-0.5236,-2.7227], device=self.device)
+        self.joint_hi = torch.tensor([1.0472,3.4907,-0.83776, 1.0472,3.4907,-0.83776, 1.0472,4.5379,-0.83776,1.0472,4.5379,-0.83776], device=self.device)
         self.p_gains = torch.zeros(LEG_DOF, dtype=torch.float, device=self.device, requires_grad=False)
         self.d_gains = torch.zeros(LEG_DOF, dtype=torch.float, device=self.device, requires_grad=False)
         self.default_dof_pos_all = torch.zeros(1, LEG_DOF, dtype=torch.float, device=self.device, requires_grad=False)
@@ -129,9 +131,9 @@ class Hardware():
         lowlevel_actions = torch.clip(actions, -clip_lowlevel_actions, clip_lowlevel_actions).to(self.device)
         lowlevel_actions[:,-1] = torch.clip(lowlevel_actions[:,-1], -1, 1).to(self.device)
 
-        # TODO: joint pos limits? torque limits?
         actions_scaled = lowlevel_actions[:,:-1] * self.cfg.control.action_scale + self.default_dof_pos_all
-        return actions_scaled
+        actions_clipped = torch.clip(actions_scaled, self.joint_lo, self.joint_hi)
+        return actions_clipped
     
         # torques = self.p_gains*(actions_scaled + self.default_dof_pos_all - self.dof_pos) - self.d_gains*self.dof_vel
         # output_torques = torch.clip(torques, -self.torque_limits, self.torque_limits)
@@ -139,6 +141,7 @@ class Hardware():
     def compute_observations(self, obs_proprio):
         lowlevel_obs_buf = torch.tensor(obs_proprio,dtype=torch.float, device=self.device).unsqueeze(0)
         self.obs_buf = torch.cat([lowlevel_obs_buf, self.scan_buf, self.priv_explicit, self.priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
+        lowlevel_obs_buf[:,0] = 0  # hist class is 0
         if self.obs_init:
             self.obs_history_buf = torch.stack([lowlevel_obs_buf] * self.cfg.env.history_len, dim=1)
         else:

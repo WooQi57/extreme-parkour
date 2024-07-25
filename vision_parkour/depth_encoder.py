@@ -56,7 +56,7 @@ class DepthSocket():
 depth_sock = DepthSocket()
 backbone_model = HardwareVisionNN()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-load_path = "./ckpt/100-33-18500-vision_weight.pt"
+load_path = "./ckpt/104-56-2400-vision_weight.pt"
 
 ac_state_dict = torch.load(load_path, map_location=device)
 backbone_model.depth_encoder.load_state_dict(ac_state_dict['depth_encoder_state_dict'])
