@@ -68,7 +68,7 @@ def play(args):
     # override some parameters for testing
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 1
-    env_cfg.env.num_envs = 4 if not args.save else 64  # 2
+    env_cfg.env.num_envs = 8 if not args.save else 64  # 2
     env_cfg.env.episode_length_s = 20 # 60 30  8
     env_cfg.commands.resampling_time = 6 # 60 10  2
     env_cfg.terrain.num_rows = 2
@@ -128,7 +128,7 @@ def play(args):
     actions = torch.zeros(env.num_envs, 13, device=env.device, requires_grad=False)
     infos = {}
     infos["depth"] = env.depth_buffer.clone().to(ppo_runner.device)[:, -1] if ppo_runner.if_depth else None
-
+    print(f"{env.friction_coeffs_tensor=}")
     for i in range(2*int(env.max_episode_length)):
         if args.use_jit:
             if env.cfg.depth.use_camera:
@@ -137,39 +137,22 @@ def play(args):
                     obs_student[:,0] = -1
                     obs_student[:, 6] = 0
                     depth_latent = depth_encoder(infos["depth"], obs_student)
-                    
-                    # depth_latent[0]=torch.tensor([ 0.5534,  0.9367, -0.5928, -0.9057,  0.9920,  0.9834,  0.9989,  0.9913,
-                    #     -0.6760,  0.9490,  0.6417, -0.9701, -0.7825,  0.8949, -0.9638, -0.9998,
-                    #     0.9811, -0.5608, -0.8833,  0.5882,  0.0769,  0.9788,  0.3382, -0.9965,
-                    #     0.9914, -0.3694,  0.0344,  0.8892, -0.9260,  0.9578,  0.8858, -0.6454],device=env.device)
-                else:
-                    depth_buffer = torch.ones((env_cfg.env.num_envs, 58, 87), device=env.device)
-                    actions = policy_jit(obs.detach(), torch.ones(env.num_envs, 32, device=env.device))
-
-                obs[:,0] = -1
+                # else:
+                #     depth_buffer = torch.ones((env_cfg.env.num_envs, 58, 87), device=env.device)
+                #     actions = policy_jit(obs.detach(), torch.ones(env.num_envs, 32, device=env.device))
+                obs[:, 0] = -1
                 obs[:, 6] = 0
                 
-                # obs[0, : env.cfg.env.n_proprio] = torch.tensor([-1.00000000e+00, -1.59789645e-03, -1.59789645e-03, -4.26105736e-03,
-                #     -1.46267600e-02,  1.57248974e-02,  0.00000000e+00, -1.57248974e-02,
-                #         8.00000000e-01,  0.00000000e+00,  0.00000000e+00,  0.00000000e+00,
-                #         4.34341207e-02,  4.78153825e-02, -1.23036981e-01, -3.49564403e-02,
-                #     -4.35274839e-03, -1.28865957e-01,  6.48352653e-02,  2.95356512e-02,
-                #     -5.55679798e-02, -6.63188472e-02,  1.14903450e-02, -1.15091085e-01,
-                #     -4.00000000e-02,  5.81328571e-04, -1.16265714e-03,  1.01100618e-04,
-                #         1.35643333e-03, -7.75104761e-04,  1.01100625e-03, -2.32531428e-03,
-                #     -1.55020952e-03,  4.04402474e-04, -1.35643333e-03, -3.87552381e-04,
-                #     -7.07704341e-04,  0.00000000e+00,  2.94919276e+00,  3.70014608e-01,
-                #         8.49897194e+00,  7.31491148e-02,  3.46814066e-01, -9.27761197e-02,
-                #     -6.81187987e-01, -8.99115682e-01, -2.48833990e+00, -1.18636012e-01,
-                #         2.56737685e+00,  1.33327454e-01, -5.43424034e+01,  0.00000000e+00,
-                #     -0.00000000e+00,  0.00000000e+00,  0.00000000e+00],device=env.device)
-                # print(f"{obs[:, :env.cfg.env.n_proprio]=}")
                 actions = policy_jit(obs.detach(), depth_latent)
-                original_actions = ppo_runner.alg.depth_actor(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
+                # actions = ppo_runner.alg.depth_actor(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
                 # print(f"jit actions:{actions}\noriginal actions:{original_actions}")
+                # print(f"1 diff:{actions-original_actions}")
             else:
                 obs_jit = torch.cat((obs.detach()[:, :env_cfg.env.n_proprio+env_cfg.env.n_priv], obs.detach()[:, -env_cfg.env.history_len*env_cfg.env.n_proprio:]), dim=1)
                 actions = policy_jit(obs.detach())
+
+
+
         else:
             if env.cfg.depth.use_camera:
                 if infos["depth"] is not None:
@@ -181,25 +164,22 @@ def play(args):
                     # yaw = depth_latent_and_yaw[:, -2:]
                 obs[:, 0] = -1
                 obs[:, 6] = 0
-                    
             else:
                 depth_latent = None
 
-            #     depth_latent[0]=torch.tensor([-0.0893, -0.8894,  0.2022,  0.9225, -0.2467,  0.1751, -0.0564,  0.1091,
-            #  -0.2128,  0.7953,  0.3242,  0.2088,  0.2267,  0.1037,  0.2565, -0.0339,
-            #  -0.9887,  0.2621,  0.0845, -0.7242, -0.3818,  0.0784,  0.1277, -0.7304,
-            #   0.0136,  0.1669,  0.0916, -0.1428, -0.9189,  0.8611,  0.1624, -0.2422],device=env.device)
-       
             if hasattr(ppo_runner.alg, "depth_actor"):
                 actions = ppo_runner.alg.depth_actor(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
             else:
                 # obs[0,env_cfg.env.n_proprio+env_cfg.env.n_scan:env_cfg.env.n_proprio+env_cfg.env.n_scan+env_cfg.env.n_priv] = estimator(obs[:, :env_cfg.env.n_proprio])
                 actions = policy(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
-            # print("dict:\n")
+
+
+
             # state_dict = ppo_runner.alg.depth_actor.state_dict()
             # for param_tensor in state_dict:
             #     print(f"Layer: {param_tensor} \nShape: {state_dict[param_tensor].size()} \nValues: {state_dict[param_tensor]}\n")
             # raise NotImplementedError
+
         obs, _, rews, dones, infos = env.step(actions.detach())
         if args.web:
             web_viewer.render(fetch_results=True,
@@ -216,25 +196,25 @@ def play(args):
         # action_hist.append(actions[env.lookat_id].tolist())
 
         id = env.lookat_id
-        if cur_time == 0 or i == 2*int(env.max_episode_length)-1:  #or (cur_time % env_cfg.commands.resampling_time)==0 
-            time_hist = np.array(time_hist[:-3])
-            angle_hist = np.array(angle_hist[:-3])
-            dof_hist = np.array(dof_hist[:-3])
-            # action_hist = np.array(action_hist[:-3])
-            for f in range(4):
-                fig,axs = plt.subplots(3,1,sharex=True)
-                for j in range(3):
-                    axs[j].plot(time_hist, angle_hist[:,j+3*f], label=f'cmd{j}')
-                    axs[j].plot(time_hist[:-1], dof_hist[1:,j+3*f], '--', label=f'real{j}')  # dof observe is actually one step earlier
-                    axs[j].legend()
-                    axs[j].grid(True, which='both', axis='both')
-                    axs[j].minorticks_on()
-                # plt.tight_layout()
-                # plt.savefig(f'../figs/cmd_following_{i}_{f}.png')
+        # if cur_time == 0 or i == 2*int(env.max_episode_length)-1:  #or (cur_time % env_cfg.commands.resampling_time)==0 
+        #     time_hist = np.array(time_hist[:-3])
+        #     angle_hist = np.array(angle_hist[:-3])
+        #     dof_hist = np.array(dof_hist[:-3])
+        #     # action_hist = np.array(action_hist[:-3])
+        #     for f in range(4):
+        #         fig,axs = plt.subplots(3,1,sharex=True)
+        #         for j in range(3):
+        #             axs[j].plot(time_hist, angle_hist[:,j+3*f], label=f'cmd{j}')
+        #             axs[j].plot(time_hist[:-1], dof_hist[1:,j+3*f], '--', label=f'real{j}')  # dof observe is actually one step earlier
+        #             axs[j].legend()
+        #             axs[j].grid(True, which='both', axis='both')
+        #             axs[j].minorticks_on()
+        #         # plt.tight_layout()
+        #         # plt.savefig(f'../figs/cmd_following_{i}_{f}.png')
 
-            time_hist = []
-            angle_hist = []
-            dof_hist = []
+        #     time_hist = []
+        #     angle_hist = []
+        #     dof_hist = []
 
 if __name__ == '__main__':
     EXPORT_POLICY = False

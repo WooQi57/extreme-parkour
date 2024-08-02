@@ -51,7 +51,7 @@ def play(args):
     
     env_cfg.terrain.terrain_proportions = list(env_cfg.terrain.terrain_dict.values())
     env_cfg.terrain.curriculum = False
-    env_cfg.terrain.max_difficulty = True
+    # env_cfg.terrain.max_difficulty = True
     
     env_cfg.depth.angle = [27-5, 27+5]
     env_cfg.noise.add_noise = True

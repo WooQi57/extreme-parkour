@@ -204,6 +204,7 @@ def get_args():
         {"name": "--teacher", "type": str, "help": "Name of the teacher policy to use when distilling"},
         {"name": "--exptid", "type": str, "help": "exptid"},
         {"name": "--resumeid", "type": str, "help": "exptid"},
+        {"name": "--resumeid_depth", "type": str, "help": "depth exptid"},
         {"name": "--daggerid", "type": str, "help": "name of dagger run"},
         {"name": "--use_camera", "action": "store_true", "default": False, "help": "render camera for distillation"},
 

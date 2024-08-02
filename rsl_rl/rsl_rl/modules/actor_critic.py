@@ -37,7 +37,7 @@ from torch.distributions import Normal
 from torch.nn.modules import rnn
 from torch.nn.modules.activation import ReLU
 
-USE_2AC = True
+USE_2AC = False
 class StateHistoryEncoder(nn.Module):
     def __init__(self, activation_fn, input_size, tsteps, output_size, tanh_encoder_output=False):
         # self.device = device
@@ -156,7 +156,7 @@ class Actor(nn.Module):
             actor_layers0.append(nn.Tanh())
 
         self.use_2ac = USE_2AC
-        self.depth_actor_use_actor1 = True
+        self.depth_actor_use_actor1 = False
         if self.use_2ac:
             actor_layers1 = []
             actor_layers1.append(nn.Linear(num_prop+

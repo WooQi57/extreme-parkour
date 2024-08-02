@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-#SBATCH --job-name="102-43-cam2ac"
+#SBATCH --job-name="101-65-cam2ac"
 #SBATCH --partition=iris-hi
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/102-43-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/101-65-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
 #SBATCH --time=72:00:00 # Max job length is 3 day
@@ -32,22 +32,25 @@ echo "
 --------------------------------------------
 task description:
     # use cam
-    use 100-43 
-    num_pretrain_iter = 0
-    use 1/3 of teacher's actions for both flat and steps
-    no curriculum, step_height=0.1 + 0.45*difficulty
-    terrain: use flat teacher before reaching edges!.
-    eval model?
-
+    # use 104-44 20000, 
+    # num_pretrain_iter = 0
+    # use 1/3 of teacher's actions for both flat and steps
+    # no curriculum, step_height=0.4 + 0.25*difficulty random diff
+    # terrain: use flat teacher unless near edges
+    # Add yaw cutoff 0.6
+    # add cur goal time out
+    only forward speed
+    continue_from_last_std = True
+    half_valid_width=[0.8, 1.5]
     # flat only, curriculum terrain=False
     lin_vel_clip = 0.2
     reward action_rate = -0.2
     delta_torques = -2*5.0e-4
-    pitch = [-0.3, 0.45]
+    pitch = [-0.3, 0.6]
     action_curr_step = [1,1] #[0, 1, 2, 0,] every 2000
     # randomly set vy and pitch commands to zero
     collision 20
-    Pitch reward use exp(-*err) 1.5
+    Pitch reward use exp(-3*err) 5
     Penalize gripper contact only
     Reward dof_error = -0.2
     Reward ang_vel_xy = -0.12 
@@ -107,9 +110,9 @@ task description:
 --------------------------------------------
 --------------------------------------------
 --------------------------------------------" 
-# --resume --resumeid 101-32 --use_camera 
+#  --resume --resumeid 104-55 --use_camera --checkpoint 20000 --resumeid_depth 104-56
 
-srun bash -c '/iris/u/wuqi23/anaconda3/envs/doggy/bin/python train.py  --task go2 --exptid 102-43-2ac --resume --resumeid 100-43 --checkpoint 3000  --use_camera  --device cuda:0 
+srun bash -c '/iris/u/wuqi23/anaconda3/envs/doggy/bin/python train.py  --task go2 --exptid 101-65-2ac   --resume --resumeid 101-60 --checkpoint 3000 --device cuda:0
 '
 
 # done

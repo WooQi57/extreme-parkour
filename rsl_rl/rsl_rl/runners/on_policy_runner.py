@@ -87,7 +87,7 @@ class OnPolicyRunner:
             # depth_actor = deepcopy(actor_critic.actor)  #
             depth_actor = Actor(self.env.cfg.env.n_proprio,self.env.cfg.env.n_scan, self.env.num_actions, self.policy_cfg["scan_encoder_dims"], self.policy_cfg["actor_hidden_dims"], self.policy_cfg["priv_encoder_dims"], self.env.cfg.env.n_priv_latent, self.env.cfg.env.n_priv, self.env.cfg.env.history_len, get_activation('elu'), tanh_encoder_output=False).to(self.device)
             depth_actor.use_2ac = False
-            depth_actor.depth_actor_use_actor1 = True
+            depth_actor.depth_actor_use_actor1 = False
         else:
             depth_encoder = None
             depth_actor = None
@@ -294,7 +294,7 @@ class OnPolicyRunner:
                 else:
                     # obs, privileged_obs, rewards, dones, infos = self.env.step(actions_student.detach())  # obs has changed to next_obs !! if done obs has been reset
                     # first 1/3 of the time, use teacher actions, the rest use student actions
-                    teacher_fraction = 1/3
+                    teacher_fraction = 1/6 # 1/3
                     num_teacher_actions_flat = int(actions_teacher.size(0)*teacher_fraction/2 )  # 1/6
                     mid = int(actions_teacher.size(0)*0.5)  # 1/2
                     num_teacher_actions_step = mid + num_teacher_actions_flat  # 1/6
@@ -519,24 +519,30 @@ class OnPolicyRunner:
             state_dict['depth_actor_state_dict'] = self.alg.depth_actor.state_dict()
         torch.save(state_dict, path)
 
-    def load(self, path, load_optimizer=True):
+    def load(self, path, resume_path_depth=None, load_optimizer=True):
         print("*" * 80)
         print("Loading model from {}...".format(path))
         loaded_dict = torch.load(path, map_location=self.device)
         self.alg.actor_critic.load_state_dict(loaded_dict['model_state_dict'])
         self.alg.estimator.load_state_dict(loaded_dict['estimator_state_dict'])
         if self.if_depth:
-            if 'depth_encoder_state_dict' not in loaded_dict:
-                warnings.warn("'depth_encoder_state_dict' key does not exist, not loading depth encoder...")
+            if resume_path_depth is not None:
+                print("Loading depth model from {}...".format(resume_path_depth))
+                loaded_depth_dict = torch.load(resume_path_depth, map_location=self.device)
+                self.alg.depth_encoder.load_state_dict(loaded_depth_dict['depth_encoder_state_dict'])
+                self.alg.depth_actor.load_state_dict(loaded_depth_dict['depth_actor_state_dict'])
             else:
-                print("Saved depth encoder detected, loading...")
-                self.alg.depth_encoder.load_state_dict(loaded_dict['depth_encoder_state_dict'])
-            if 'depth_actor_state_dict' in loaded_dict:
-                print("Saved depth actor detected, loading...")
-                self.alg.depth_actor.load_state_dict(loaded_dict['depth_actor_state_dict'])
-            else:
-                print("No saved depth actor, Copying actor critic actor to depth actor...")
-                self.alg.depth_actor.load_state_dict(self.alg.actor_critic.actor.state_dict())
+                if 'depth_encoder_state_dict' not in loaded_dict:
+                    warnings.warn("'depth_encoder_state_dict' key does not exist, not loading depth encoder...")
+                else:
+                    print("Saved depth encoder detected, loading...")
+                    self.alg.depth_encoder.load_state_dict(loaded_dict['depth_encoder_state_dict'])
+                if 'depth_actor_state_dict' in loaded_dict:
+                    print("Saved depth actor detected, loading...")
+                    self.alg.depth_actor.load_state_dict(loaded_dict['depth_actor_state_dict'])
+                else:
+                    print("No saved depth actor, Copying actor critic actor to depth actor...")
+                    self.alg.depth_actor.load_state_dict(self.alg.actor_critic.actor.state_dict())
         if load_optimizer:
             self.alg.optimizer.load_state_dict(loaded_dict['optimizer_state_dict'])
         # self.current_learning_iteration = loaded_dict['iter']

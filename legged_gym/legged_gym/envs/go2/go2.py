@@ -214,13 +214,15 @@ class Go2(BaseTask):
         next_flag = self.reach_goal_timer > self.cfg.env.reach_goal_delay / self.dt
         self.cur_goal_idx[next_flag] += 1
         self.reach_goal_timer[next_flag] = 0
+        self.cur_goal_timer[next_flag] = 0
         # print(f"{torch.norm(self.root_states[:, :2] - self.cur_goals[:, :2], dim=1)}")
         self.reached_goal_ids = torch.norm(self.root_states[:, :2] - self.cur_goals[:, :2], dim=1) < self.cfg.env.next_goal_threshold
         self.reach_goal_timer[self.reached_goal_ids] += 1
+        self.cur_goal_timer += 1
 
         self.target_pos_rel = self.cur_goals[:, :2] - self.root_states[:, :2]
-        if verbose:
-            print(f"cur goal:{self.cur_goals}\ncur state:{self.root_states[:, :3]}")
+        # print(f"cur goal:{self.cur_goals}\ncur state:{self.root_states[:, :3]}")
+        # print(f"target_pos_rel:{self.target_pos_rel}")
         self.next_target_pos_rel = self.next_goals[:, :2] - self.root_states[:, :2]
 
         norm = torch.norm(self.target_pos_rel, dim=-1, keepdim=True)
@@ -315,18 +317,32 @@ class Go2(BaseTask):
         self.reset_buf = torch.zeros((self.num_envs, ), dtype=torch.bool, device=self.device)
         # self.reset_buf = torch.any(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 1., dim=1)
         roll_cutoff = torch.abs(self.roll) > 1.2
-        pitch_cutoff = torch.abs(self.pitch) > 1.3
+        pitch_cutoff = torch.abs(self.pitch) > 1.2  # 1.3 1.6
+        yaw_cutoff = (torch.abs(self.yaw) > 0.6) & (self.env_class==1)  # only for env_class 1
         reach_goal_cutoff = self.cur_goal_idx >= self.cfg.terrain.num_goals
+        stumble_cutoff = torch.any(torch.norm(self.contact_forces[:, self.feet_indices, :2], dim=2) >\
+             4 *torch.abs(self.contact_forces[:, self.feet_indices, 2]), dim=1)
+
+        reach_boundary_cutoff = self.root_states[:, 0] < 0
+        reach_boundary_cutoff |= self.root_states[:, 0] > self.tot_length
+        reach_boundary_cutoff[self.env_class==0] |= self.root_states[self.env_class==0, 1] > self.tot_width/2 - 1
+        reach_boundary_cutoff |= self.root_states[:, 1] < 0
+        reach_boundary_cutoff |= self.root_states[:, 1] > self.tot_width
+
         height_cutoff = self.root_states[:, 2] < 0.2  #-0.25
-        # print(f"{self.root_states[:, 2]=}")
+        cur_goal_cutoff = (self.cur_goal_timer > self.cfg.env.cur_goal_max_time / self.dt) & (self.env_class==1) 
 
         self.time_out_buf = self.episode_length_buf > self.max_episode_length # no terminal reward for time-outs
         self.time_out_buf |= reach_goal_cutoff
+        self.time_out_buf |= reach_boundary_cutoff
+        # self.time_out_buf |= cur_goal_cutoff
 
         self.reset_buf |= self.time_out_buf
         self.reset_buf |= roll_cutoff
         self.reset_buf |= pitch_cutoff
+        # self.reset_buf |= yaw_cutoff
         self.reset_buf |= height_cutoff
+        # self.reset_buf |= stumble_cutoff
 
     def reset_idx(self, env_ids):
         """ Reset some environments.
@@ -356,6 +372,9 @@ class Go2(BaseTask):
         # print(f"{move_up=}, {move_down=}")
         if self.cfg.terrain.curriculum:
             self._update_terrain_curriculum(env_ids)
+        else:
+            self._update_terrain_curriculum(env_ids, random=True)  # doesn't matter if random
+
         # avoid updating command curriculum at each step since the maximum command is common to all envs
         if self.cfg.commands.curriculum and (self.common_step_counter % self.max_episode_length==0):
             self.update_command_curriculum(env_ids)
@@ -379,6 +398,7 @@ class Go2(BaseTask):
         self.action_history_buf[env_ids, :, :] = 0.
         self.cur_goal_idx[env_ids] = 0
         self.reach_goal_timer[env_ids] = 0
+        self.cur_goal_timer[env_ids] = 0
 
         # fill extras
         self.extras["episode"] = {}
@@ -439,10 +459,13 @@ class Go2(BaseTask):
         self.delta_pitch = self.commands[:, 3] - self.pitch
         avg_foot_height = torch.sum(self.rigid_body_states[:, self.feet_indices, 2], dim=1) / 4.
         self.delta_z = self.cur_goals[:, 2] - avg_foot_height
-        self.delta_z[self.env_class == 0] = 0
+        # self.delta_z[self.env_class == 0] = 0
         # print(f"{self.cur_goals[:, 2]=}")
         # print(f"{self.root_states[:, 2]=}")
-        self.commands[self.env_class!=0, 2] = torch.clip(0.5*wrap_to_pi(self.target_yaw[self.env_class!=0] - self.yaw[self.env_class!=0]), self.command_ranges["omega"][0], self.command_ranges["omega"][1])
+        # print(f"{self.target_yaw-self.yaw=}")
+        # self.commands[self.env_class!=0, 2] = torch.clip(0.5*wrap_to_pi(self.target_yaw[self.env_class!=0] - self.yaw[self.env_class!=0]), self.command_ranges["omega"][0], self.command_ranges["omega"][1])
+        self.commands[:, 2] = torch.clip(0.5*wrap_to_pi(self.target_yaw - self.yaw), self.command_ranges["omega"][0], self.command_ranges["omega"][1])
+        # print(f"{self.commands=}")
 
         # add noise to observation
         base_ang_vel = self.get_noisy_measurement(self.base_ang_vel, self.cfg.noise.noise_scales.ang_vel)
@@ -456,25 +479,20 @@ class Go2(BaseTask):
         
         # print(f"{self.root_states[:, :2]-self.env_origins[:,:2]}")
         class_ind = self.env_class.clone()
-        if self.cfg.depth.use_camera or True:
-            # use flat policy for teacher before reaching to the stairs
-            x_dist = self.root_states[:, 0]-self.env_origins[:,0]
-            body_pos_xy = ((self.root_states[:, :2] + self.terrain.cfg.border_size) / self.cfg.terrain.horizontal_scale).round().long()  # (num_envs, 2)
-            body_pos_x = body_pos_xy[:,0].unsqueeze(1).expand(-1,2*self.half_window_size+1)+self.edge_indices
-            body_pos_x = torch.clip(body_pos_x, 0, self.x_edge_mask.shape[0]-1)
-            body_pos_y = body_pos_xy[:,1].unsqueeze(1).expand(-1,2*self.half_window_size+1)+self.edge_indices
-            body_pos_y = torch.clip(body_pos_y, 0, self.x_edge_mask.shape[1]-1)
-            body_at_edge = torch.any(self.x_edge_mask[body_pos_x, body_pos_y], dim=1)
-
-            mask = (class_ind == 1) & (x_dist < 2.5)
-            class_ind[mask] = 0
-            # print(f"{class_ind=}")
+        # if self.cfg.depth.use_camera or True:
+        #     x_dist = self.root_states[:, 0]-self.env_origins[:,0]
+        #     body_at_edge = self._near_x_edges()
+        #     mask = (class_ind == 1) & torch.logical_not(body_at_edge)
+        #     class_ind[body_at_edge] = 1
+        #     class_ind[torch.logical_not(body_at_edge)] = 0
+        #     print(f"class_ind: {class_ind}")
+        #     # print(f"flat: {torch.logical_not(body_at_edge)}")
 
         obs_buf = torch.cat((#skill_vector, 
-                            class_ind.unsqueeze(1),  #[1,1]
+                            0*class_ind.unsqueeze(1),  #[1,1]
                             base_ang_vel  * self.obs_scales.ang_vel,   #[1,3]
                             imu_obs,    #[1,2]
-                            self.delta_z[:, None],  #[1,1]
+                            0*self.delta_z[:, None],  #[1,1]
                             delta_pitch[:, None],   #[1,1]
                             self.commands,  #[1,4]
                             self.reindex((dof_pos - self.default_dof_pos_all) * self.obs_scales.dof_pos),  #[1,13] contain no passive dof
@@ -507,7 +525,7 @@ class Go2(BaseTask):
             self.obs_buf = torch.cat([obs_buf, heights, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
         else:
             self.obs_buf = torch.cat([obs_buf, priv_explicit, priv_latent, self.obs_history_buf.view(self.num_envs, -1)], dim=-1)
-        obs_buf[:, 0] = -1  # mask env class in proprioceptive history
+        obs_buf[:, 0] = -1*0  # mask env class in proprioceptive history
         obs_buf[:, 6] = 0  # mask z in proprioceptive history
         self.obs_history_buf = torch.where(
             (self.episode_length_buf <= 1)[:, None, None], 
@@ -588,6 +606,13 @@ class Go2(BaseTask):
                 self.friction_coeffs = friction_buckets[bucket_ids]
             for s in range(len(props)):
                 props[s].friction = self.friction_coeffs[env_id]
+        else:  # use lowest friction
+            if env_id==0:
+                # prepare friction randomization
+                friction_range = self.cfg.domain_rand.friction_range
+                self.friction_coeffs = (torch.ones((self.num_envs,1,1), device='cpu') * friction_range[0])
+            for s in range(len(props)):
+                props[s].friction = self.friction_coeffs[env_id]
         return props
 
     def _process_dof_props(self, props, env_id):
@@ -652,6 +677,8 @@ class Go2(BaseTask):
         if self.cfg.terrain.measure_heights:
             if self.global_counter % self.cfg.depth.update_interval == 0:
                 self.measured_heights = self._get_heights()
+                self.body_at_edge = self._near_x_edges()
+
         if self.cfg.domain_rand.push_robots and  (self.common_step_counter % self.cfg.domain_rand.push_interval == 0):
             self._push_robots()
         
@@ -682,11 +709,12 @@ class Go2(BaseTask):
 
         # self.commands[env_ids, 0] *= (self.env_class[env_ids] != 0)*torch.sign(self.commands[env_ids, 0]) + (self.env_class[env_ids] == 0) # positive for parkour
         # self.commands*=0
-        # self.commands[:, 0]=0.8
+        # self.commands[:, 1]=0.5
         # self.commands[:, 3]=0.45
         
         # set commands to zero for parkour
         self.commands[env_ids, 1:] *= (self.env_class[env_ids] == 0).unsqueeze(1)
+        # self.commands[env_ids, 3] *= torch.logical_or((self.env_class[env_ids] == 0), (0*self.root_states[env_ids, 2]>0.5))
         # print(f"{self.commands=}")
 
     def _compute_torques(self, actions):
@@ -707,11 +735,13 @@ class Go2(BaseTask):
             if not self.cfg.domain_rand.randomize_motor:  # TODO add strength to gain directly
                 torques = self.p_gains*(actions_scaled + self.default_dof_pos_all - self.dof_pos) - self.d_gains*self.dof_vel
             else:
-                self.target_angles = self.default_dof_pos_all + actions_scaled
+                self.target_angles = torch.clip(self.default_dof_pos_all + actions_scaled, self.dof_pos_limits[:, 0], self.dof_pos_limits[:, 1])
+                # self.target_angles = self.default_dof_pos_all + actions_scaled
                 # print(f"{self.target_angles=}")
                 # print(f"{self.dof_names=}")
                 # print(f"{self.dof_pos=}")
-                torques = self.motor_strength[0] * self.p_gains*(actions_scaled + self.default_dof_pos_all - self.dof_pos) - self.motor_strength[1] * self.d_gains*self.dof_vel
+                # torques = self.motor_strength[0] * self.p_gains*(actions_scaled + self.default_dof_pos_all - self.dof_pos) - self.motor_strength[1] * self.d_gains*self.dof_vel
+                torques = self.motor_strength[0] * self.p_gains*(self.target_angles - self.dof_pos) - self.motor_strength[1] * self.d_gains*self.dof_vel
         elif control_type=="V":
             torques = self.p_gains*(actions_scaled - self.dof_vel) - self.d_gains*(self.dof_vel - self.last_dof_vel)/self.sim_params.dt
         elif control_type=="T":
@@ -752,6 +782,7 @@ class Go2(BaseTask):
         if self.custom_origins:
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
+            # self.root_states[env_ids, :3] += ((self.env_class[env_ids]==1).unsqueeze(1) & torch.randint(0, 2, (len(env_ids),1),device=self.device)) * torch.tensor([(0.5+0.7+2),0, 0.8],device=self.device)
             if self.cfg.env.randomize_start_pos:
                 self.root_states[env_ids, :2] += torch_rand_float(-0.3, 0.3, (len(env_ids), 2), device=self.device) # xy position within 1m of the center
             if self.cfg.env.randomize_start_yaw:
@@ -781,12 +812,15 @@ class Go2(BaseTask):
         """
         max_vel = self.cfg.domain_rand.max_push_vel_xy
         max_vel_z = self.cfg.domain_rand.max_push_vel_z
-        self.root_states[:, 7:9] = torch_rand_float(-max_vel, max_vel, (self.num_envs, 2), device=self.device) # lin vel x/y
-        self.root_states[:, 9] = torch_rand_float(-max_vel_z, max_vel_z, (self.num_envs,1), device=self.device).squeeze(1) # lin vel z
+        rand_xy = torch_rand_float(-max_vel, max_vel, (torch.sum(self.env_class!=2).item(), 2), device=self.device) # lin vel x/y
+        rand_z = torch_rand_float(-max_vel_z, max_vel_z, (torch.sum(self.env_class!=2).item(),1), device=self.device).squeeze(1) # lin vel z
+        self.root_states[self.env_class!=2, 7:9] = rand_xy
+        self.root_states[self.env_class!=2, 9] = rand_z
         self.all_root_states[self.robot_idxs,:] = self.root_states
+        # print(f"push robot: {self.all_root_states}")
         self.gym.set_actor_root_state_tensor(self.sim, gymtorch.unwrap_tensor(self.all_root_states))
 
-    def _update_terrain_curriculum(self, env_ids):
+    def _update_terrain_curriculum(self, env_ids, random=False):
         """ Implements the game-inspired curriculum.
 
         Args:
@@ -806,9 +840,12 @@ class Go2(BaseTask):
 
         self.terrain_levels[env_ids] += 1 * move_up - 1 * move_down
         # # Robots that solve the last level are sent to a random one
-        self.terrain_levels[env_ids] = torch.where(self.terrain_levels[env_ids]>=self.max_terrain_level,
-                                                   torch.randint_like(self.terrain_levels[env_ids], self.max_terrain_level),
-                                                   torch.clip(self.terrain_levels[env_ids], 0)) # (the minumum level is zero)
+        if random:
+            self.terrain_levels[env_ids] = torch.randint_like(self.terrain_levels[env_ids], self.max_terrain_level)
+        else:
+            self.terrain_levels[env_ids] = torch.where(self.terrain_levels[env_ids]>=self.max_terrain_level,
+                                                        torch.randint_like(self.terrain_levels[env_ids], self.max_terrain_level),
+                                                        torch.clip(self.terrain_levels[env_ids], 0)) # (the minumum level is zero)
         self.env_origins[env_ids] = self.terrain_origins[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
         self.env_class[env_ids] = self.terrain_class[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
         
@@ -865,6 +902,8 @@ class Go2(BaseTask):
         self.last_root_vel = torch.zeros_like(self.root_states[:, 7:13])
 
         self.reach_goal_timer = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
+        self.cur_goal_timer = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
+        self.body_at_edge = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
 
         str_rng = self.cfg.domain_rand.motor_strength_range
         self.motor_strength = (str_rng[1] - str_rng[0]) * torch.rand(2, self.num_envs, self.num_actions+self.num_dummy_dof, dtype=torch.float, device=self.device, requires_grad=False) + str_rng[0]
@@ -883,6 +922,7 @@ class Go2(BaseTask):
         self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
         if self.cfg.terrain.measure_heights:
             self.height_points = self._init_height_points()
+            self.edge_height_points = self._init_edge_height_points()
         self.measured_heights = 0
 
         # joint positions offsets and PD gains
@@ -992,7 +1032,15 @@ class Go2(BaseTask):
         self.x_edge_mask = torch.tensor(self.terrain.x_edge_mask).view(self.terrain.tot_rows, self.terrain.tot_cols).to(self.device)
         self.half_window_size = round(0.5 / self.cfg.terrain.horizontal_scale)
         self.edge_indices = torch.arange(-self.half_window_size, self.half_window_size+1,device=self.device).unsqueeze(0)
+        
+        self.tot_length = self.cfg.terrain.num_rows * self.cfg.terrain.terrain_length
+        self.tot_width = self.cfg.terrain.num_cols * self.cfg.terrain.terrain_width
 
+        # # plot x edge mask
+        # import matplotlib.pyplot as plt
+        # plt.imshow(self.x_edge_mask.cpu().numpy(), cmap='gray', vmin=0, vmax=1)
+        # plt.axis('off')  # Turn off the axis
+        # plt.savefig('binary_matrix.png', bbox_inches='tight', pad_inches=0)
 
     def attach_camera(self, i, env_handle, actor_handle):
         if self.cfg.depth.use_camera:
@@ -1141,8 +1189,8 @@ class Go2(BaseTask):
         if verbose:
             print(f"robot_idxs:{self.robot_idxs}\nbox_idxs:{self.box_idxs}")
 
-        if self.cfg.domain_rand.randomize_friction:
-            self.friction_coeffs_tensor = self.friction_coeffs.to(self.device).to(torch.float).squeeze(-1)
+        # if self.cfg.domain_rand.randomize_friction:
+        self.friction_coeffs_tensor = self.friction_coeffs.to(self.device).to(torch.float).squeeze(-1)
 
         self.feet_indices = torch.zeros(len(feet_names), dtype=torch.long, device=self.device, requires_grad=False)
         # feet names:['FL_foot', 'FR_foot', 'RL_foot', 'RR_foot']
@@ -1323,6 +1371,25 @@ class Go2(BaseTask):
             points[i, :, 1] = grid_y.flatten() + xy_noise[:, 1]
         return points
 
+    def _init_edge_height_points(self):
+        """ Returns points at which the height measurments are sampled (in base frame)
+
+        Returns:
+            [torch.Tensor]: Tensor of shape (num_envs, self.num_edge_height_points, 3)
+        """
+        y = torch.tensor(self.cfg.terrain.measured_edge_points_y, device=self.device, requires_grad=False)
+        x = torch.tensor(self.cfg.terrain.measured_edge_points_x, device=self.device, requires_grad=False)
+        grid_x, grid_y = torch.meshgrid(x, y)
+
+        self.num_edge_height_points = grid_x.numel()
+        points = torch.zeros(self.num_envs, self.num_edge_height_points, 3, device=self.device, requires_grad=False)
+        for i in range(self.num_envs):
+            offset = torch_rand_float(-self.cfg.terrain.measure_horizontal_noise, self.cfg.terrain.measure_horizontal_noise, (self.num_edge_height_points,2), device=self.device).squeeze()
+            xy_noise = torch_rand_float(-self.cfg.terrain.measure_horizontal_noise, self.cfg.terrain.measure_horizontal_noise, (self.num_edge_height_points,2), device=self.device).squeeze() + offset
+            points[i, :, 0] = grid_x.flatten() + xy_noise[:, 0]
+            points[i, :, 1] = grid_y.flatten() + xy_noise[:, 1]
+        return points
+
     def get_foot_contacts(self):
         foot_contacts_bool = self.contact_forces[:, self.feet_indices, 2] > 10
         if self.cfg.env.include_foot_contacts:
@@ -1368,6 +1435,28 @@ class Go2(BaseTask):
 
         return heights.view(self.num_envs, -1) * self.terrain.cfg.vertical_scale
 
+    def _near_x_edges(self, env_ids=None):
+        
+        if self.cfg.terrain.mesh_type == 'plane':
+            return torch.zeros(self.num_envs, self.num_height_points, device=self.device, requires_grad=False)
+        elif self.cfg.terrain.mesh_type == 'none':
+            raise NameError("Can't measure height with terrain mesh type 'none'")
+
+        if env_ids:
+            points = quat_apply_yaw(self.base_quat[env_ids].repeat(1, self.num_edge_height_points), self.edge_height_points[env_ids]) + (self.root_states[env_ids, :3]).unsqueeze(1)
+        else:
+            points = quat_apply_yaw(self.base_quat.repeat(1, self.num_edge_height_points), self.edge_height_points) + (self.root_states[:, :3]).unsqueeze(1)
+
+        points += self.terrain.cfg.border_size
+        points = (points/self.terrain.cfg.horizontal_scale).long()
+        px = points[:, :, 0]
+        py = points[:, :, 1]
+        px = torch.clip(px, 0, self.height_samples.shape[0]-2)
+        py = torch.clip(py, 0, self.height_samples.shape[1]-2)
+        body_at_edge = torch.any(self.x_edge_mask[px, py], dim=1)
+
+        return body_at_edge
+
     def _get_heights_points(self, coords, env_ids=None):
         if env_ids:
             points = coords[env_ids]
@@ -1395,14 +1484,15 @@ class Go2(BaseTask):
         target_vec_norm = self.target_pos_rel / (norm + 1e-5)
         cur_vel = self.root_states[:, 7:9]
         # print(f"{cur_vel=}")
-        rew = torch.minimum(torch.sum(target_vec_norm * cur_vel, dim=-1), self.commands[:, 0]) / (self.commands[:, 0] + 1e-5)
-        rew[self.env_class == 0] = 0.
+        rew = torch.minimum(torch.sum(target_vec_norm * cur_vel, dim=-1) / (self.commands[:, 0] + 1e-5), self.commands[:, 0] / (self.commands[:, 0] + 1e-5))
+        # rew[self.env_class == 0] = 0.
         # print(f"{rew}")
+        # print(f"{self.commands}")
         return rew
 
     def _reward_tracking_yaw(self):
         rew = torch.exp(-torch.abs(self.target_yaw - self.yaw))
-        rew[self.env_class == 0] = 0.
+        # rew[self.env_class == 0] = 0.
         return rew
     
     def _reward_tracking_z(self):
@@ -1416,35 +1506,43 @@ class Go2(BaseTask):
         return rew
     
     def _reward_lin_vel_z_parkour(self):
-        body_pos_xy = ((self.root_states[:, :2] + self.terrain.cfg.border_size) / self.cfg.terrain.horizontal_scale).round().long()  # (num_envs, 2)
-        body_pos_x = body_pos_xy[:,0].unsqueeze(1).expand(-1,2*self.half_window_size+1)+self.edge_indices
-        body_pos_x = torch.clip(body_pos_x, 0, self.x_edge_mask.shape[0]-1)
-        body_pos_y = body_pos_xy[:,1].unsqueeze(1).expand(-1,2*self.half_window_size+1)+self.edge_indices
-        body_pos_y = torch.clip(body_pos_y, 0, self.x_edge_mask.shape[1]-1)
-        body_at_edge = torch.any(self.x_edge_mask[body_pos_x, body_pos_y], dim=1)
-        # print(f"{body_at_edge=}")
         if hasattr(self, 'delta_z'):
-            # rew = torch.clamp(self.base_lin_vel[:, 2] *(torch.norm(self.target_pos_rel, dim=-1)<0.3), min=0, max=1)
-            # rew = torch.clamp(self.base_lin_vel[:, 2] * (self.delta_z > 0.2), min=0, max=1) + (self.delta_z <= 0.2).float()
-            rew = torch.clamp(self.root_states[:, 9] * (self.delta_z > 0.)*body_at_edge, min=0)
-            rew[self.env_class == 0] = 0.
+            xz_vel = torch.norm(self.root_states[:, [7,9]], dim=-1)
+            rew = torch.clamp(self.root_states[:, 9] * self.body_at_edge * (self.delta_z > 0.2), min=-0)
             # print(f"{self.delta_z=}")
             # print(f"{self.base_lin_vel[:, 2]=}")
         else:
             rew = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
-        # print(f"{torch.norm(self.target_pos_rel, dim=-1)=}")
-        # print(f"lin vel parkour: {rew}")
+
+
+        rew[self.env_class == 0] = 0.
+        # print(f"lin vel z parkour: {rew}")
 
         return rew
+
+        # body_pos_xy = ((self.root_states[:, :2] + self.terrain.cfg.border_size) / self.cfg.terrain.horizontal_scale).round().long()  # (num_envs, 2)
+        # body_pos_x = body_pos_xy[:,0].unsqueeze(1).expand(-1,2*self.half_window_size+1)+self.edge_indices
+        # body_pos_x = torch.clip(body_pos_x, 0, self.x_edge_mask.shape[0]-1)
+        # body_pos_y = body_pos_xy[:,1].unsqueeze(1).expand(-1,2*self.half_window_size+1)+self.edge_indices
+        # body_pos_y = torch.clip(body_pos_y, 0, self.x_edge_mask.shape[1]-1)
+        # body_at_edge = torch.any(self.x_edge_mask[body_pos_x, body_pos_y], dim=1)
+        # # print(f"{body_at_edge=}")
 
     def _reward_terrain_level(self):
         rew = self.terrain_levels
         return rew
 
+    def _reward_terrain_goal(self):
+        rew = self.cur_goal_idx
+        rew[self.env_class == 0] = 0.
+        # print(f"terrain goal rew: {rew}")
+        return rew
+
     def _reward_tracking_lin_vel(self):
         # Tracking of linear velocity commands (xy axes)
         cur_vel = self.root_states[:, 7:9]
-        lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:,:2]), dim=1)
+        lin_vel_error = torch.square(self.commands[:, 1] - self.base_lin_vel[:,1])
+        # lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:,:2]), dim=1)
         rew = torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)
         rew[self.env_class != 0] = 0.
         # print(rew)
@@ -1455,9 +1553,11 @@ class Go2(BaseTask):
         return rew
 
     def _reward_tracking_pitch(self):
-        rew = torch.exp(-torch.abs(self.commands[:, 3] - self.pitch))
-        rew[self.env_class != 0] = 0.
-        # print(f"{rew=}")
+        rew = torch.exp(-3*torch.abs(self.commands[:, 3] - self.pitch)) #3
+        if hasattr(self, 'delta_z'):
+            rew[(self.body_at_edge != 0)&(self.delta_z < -0.1)] = 0.6  # not for landing
+        # rew[self.env_class != 0] = 0.
+        # print(f"pitch rew {rew=}")
         # print(f"{self.pitch=}")
         # print(f"{self.commands[:, 3]=}")
         return rew
@@ -1474,15 +1574,19 @@ class Go2(BaseTask):
     
     def _reward_lin_vel_z_walking(self):
         rew = torch.square(self.base_lin_vel[:, 2])
-        rew[self.env_class != 0] = 0.
+        rew[self.body_at_edge != 0] = 0.
+        # rew[self.env_class != 0] = 0.
+        # print(f"{rew}")
         return rew
     
     def _reward_ang_vel_xy(self):
-        return torch.sum(torch.square(self.base_ang_vel[:, :2]), dim=1)
+        rew = torch.sum(torch.square(self.base_ang_vel[:, :2]), dim=1)
+        return rew
     
     def _reward_orientation(self):
         rew = torch.sum(torch.square(self.projected_gravity[:, :2]), dim=1)
-        rew[self.env_class != 17] = 0.
+        rew[self.body_at_edge != 0] = 0.
+        # print(f"orient {rew=}")
         return rew
 
     def _reward_dof_acc(self):
@@ -1502,8 +1606,8 @@ class Go2(BaseTask):
     
     def _reward_torques(self):
         # print(f"{self.contact_forces[:, self.feet_indices, 2]=}")
-        # return torch.sum(torch.square(self.torques), dim=1)
-        return torch.sum(torch.abs(torch.pow(self.torques, 3)), dim=1)
+        return torch.sum(torch.square(self.torques), dim=1)
+        # return torch.sum(torch.abs(torch.pow(self.torques, 3)), dim=1)
 
     def _reward_hip_pos(self):
         return torch.sum(torch.square(self.dof_pos[:, self.hip_indices] - self.default_dof_pos[:, self.hip_indices]), dim=1)
@@ -1516,6 +1620,7 @@ class Go2(BaseTask):
         # Penalize feet hitting vertical surfaces
         rew = torch.any(torch.norm(self.contact_forces[:, self.feet_indices, :2], dim=2) >\
              4 *torch.abs(self.contact_forces[:, self.feet_indices, 2]), dim=1)
+        # print(f"stumble rew: {rew}")
         return rew.float()
 
     def _reward_feet_edge(self):
@@ -1526,4 +1631,19 @@ class Go2(BaseTask):
     
         self.feet_at_edge = self.contact_filt & feet_at_edge
         rew = (self.terrain_levels > 3) * torch.sum(self.feet_at_edge, dim=-1)
+        return rew
+
+    def _reward_feet_drag(self):
+        # contact_forces = self.contact_forces[:, self.feet_indices, 2]
+        feet_xy_vel = torch.abs(self.rigid_body_states[:, self.feet_indices, 7:9]).sum(dim=-1)
+        dragging_vel = self.contact_filt * feet_xy_vel
+        rew = dragging_vel.sum(dim=-1)
+        # print(rew[self.lookat_id].cpu().numpy(), self.contact_filt[self.lookat_id].cpu().numpy(), feet_xy_vel[self.lookat_id].cpu().numpy())
+        # print(f"dragging_vel: {dragging_vel[self.lookat_id]}")
+        # print(f"drag rew: {rew}")
+        return rew
+
+    def _reward_energy(self):
+        rew = torch.norm(torch.abs(self.torques * self.dof_vel), dim=-1)
+        # print(f"energy rew: {rew}")
         return rew

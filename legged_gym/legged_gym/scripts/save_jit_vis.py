@@ -101,8 +101,8 @@ class Actor(nn.Module):
         if tanh_encoder_output:
             actor_layers0.append(nn.Tanh())
 
-        self.use_2ac = True
-        self.depth_actor_use_actor1 = True
+        self.use_2ac = False
+        self.depth_actor_use_actor1 = False
         if self.use_2ac:
             actor_layers1 = []
             actor_layers1.append(nn.Linear(num_prop+

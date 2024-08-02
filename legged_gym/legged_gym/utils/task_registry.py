@@ -161,7 +161,12 @@ class TaskRegistry():
             print(train_cfg.runner.load_run)
             # load_root = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', "rough_a1", train_cfg.runner.load_run)
             resume_path = get_load_path(log_root, load_run=train_cfg.runner.load_run, checkpoint=train_cfg.runner.checkpoint,model_name_include=model_name_include)
-            runner.load(resume_path)
+            if args.resumeid_depth:
+                log_depth_root = LEGGED_GYM_ROOT_DIR + f"/logs/{args.proj_name}/" + args.resumeid_depth
+                resume_path_depth = get_load_path(log_depth_root, load_run=-1, checkpoint=-1,model_name_include=model_name_include)
+                runner.load(resume_path,resume_path_depth)
+            else:
+                runner.load(resume_path)
             if not train_cfg.policy.continue_from_last_std:
                 runner.alg.actor_critic.reset_std(train_cfg.policy.init_noise_std, 13, device=runner.device)
 
