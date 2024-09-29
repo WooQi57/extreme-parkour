@@ -63,3 +63,5 @@ __pycache__
 data
 evaluate
 debug
+*.npz
+*.npy

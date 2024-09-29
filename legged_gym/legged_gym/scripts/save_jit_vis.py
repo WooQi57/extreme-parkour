@@ -273,7 +273,7 @@ def play(args):
         # traced_policy = torch.jit.script(policy)
         save_path = os.path.join(load_run, "traced", args.exptid + "-" + str(checkpoint) + "-base_jit.pt")
         traced_policy.save(save_path)
-        print("Saved traced_actor at ", os.path.abspath(save_path))
+        print("Saved traced_actor at ", os.path.abspath(os.path.join(load_run, "traced")))
 
     
 if __name__ == '__main__':

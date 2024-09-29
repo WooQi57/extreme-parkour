@@ -337,6 +337,7 @@ class PPO:
 
     def update_depth_actor(self, actions_student_batch, actions_teacher_batch):
         if self.if_depth:
+            # depth_actor_loss = ((actions_teacher_batch.detach() - actions_student_batch)[:, :-1]).norm(p=2, dim=1).mean()
             depth_actor_loss = (actions_teacher_batch.detach() - actions_student_batch).norm(p=2, dim=1).mean()
 
             loss = depth_actor_loss

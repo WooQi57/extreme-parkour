@@ -1,15 +1,15 @@
 #!/bin/bash
 #
-#SBATCH --job-name="101-65-cam2ac"
+#SBATCH --job-name="314-22-cam2ac"
 #SBATCH --partition=iris-hi
 #SBATCH --account=iris
-#SBATCH --output=/iris/u/wuqi23/doggybot/output/101-65-%j.out
+#SBATCH --output=/iris/u/wuqi23/doggybot/output/314-22-%j.out
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1 
 #SBATCH --time=72:00:00 # Max job length is 3 day
 #SBATCH --nodes=1 # Only use one node (machine)
 #SBATCH --mem=32G
-#SBATCH --exclude=iris-hp-z8,iris1,iris2,iris3,iris4,iris-hgx-1
+#SBATCH --exclude=iris-hp-z8,iris1,iris2,iris3,iris4,iris5,iris6,iris9,iris10,iris-hgx-1
 
 ###SBATCH --mem-per-cpu=2G
 
@@ -112,8 +112,9 @@ task description:
 --------------------------------------------" 
 #  --resume --resumeid 104-55 --use_camera --checkpoint 20000 --resumeid_depth 104-56
 
-srun bash -c '/iris/u/wuqi23/anaconda3/envs/doggy/bin/python train.py  --task go2 --exptid 101-65-2ac   --resume --resumeid 101-60 --checkpoint 3000 --device cuda:0
+srun bash -c '/iris/u/wuqi23/anaconda3/envs/doggy/bin/python train.py  --task go2 --exptid 314-22-2ac  --resume --resumeid 304-22 --use_camera --device cuda:0
 '
-
+# srun bash -c '/iris/u/wuqi23/anaconda3/envs/doggy/bin/python train.py  --task go2 --exptid 203-16-2ac   --resume --resumeid 203-15 --use_camera --checkpoint 5000 --device cuda:0
+# '
 # done
 echo "Done"

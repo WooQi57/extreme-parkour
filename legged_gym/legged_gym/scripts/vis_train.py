@@ -39,21 +39,23 @@ def play(args):
     # override some parameters for testing
     if args.nodelay:
         env_cfg.domain_rand.action_delay_view = 1
-    env_cfg.env.num_envs = 20 if not args.save else 64  # 2
+    env_cfg.env.num_envs = 8 if not args.save else 64  # 2
     env_cfg.env.episode_length_s = 20 # 60 30  8
     env_cfg.commands.resampling_time = 6 # 60 10  2
     env_cfg.terrain.num_rows = 2
-    env_cfg.terrain.num_cols = 10
-    env_cfg.terrain.height = [0.02, 0.02]
+    env_cfg.terrain.num_cols = 4#10
+    # env_cfg.terrain.height = [0.02, 0.02]
     env_cfg.terrain.terrain_dict = {
-                                    "parkour_flat": 0.5*0,
+                                    "parkour_flat": 0.5,
                                     "parkour_step": 0.5,}
     
     env_cfg.terrain.terrain_proportions = list(env_cfg.terrain.terrain_dict.values())
     env_cfg.terrain.curriculum = False
     # env_cfg.terrain.max_difficulty = True
     
-    env_cfg.depth.angle = [27-5, 27+5]
+    env_cfg.depth.angle = [29-0.1, 29+0.1]
+    env_cfg.position = [0.3, 0, 0.147]
+    env_cfg.position_rand = 0.01*0
     env_cfg.noise.add_noise = True
     env_cfg.domain_rand.randomize_friction = True
     env_cfg.domain_rand.push_robots = False
@@ -114,6 +116,7 @@ def play(args):
             
             with torch.no_grad():
                 actions_teacher = ppo_runner.alg.actor_critic.act_inference(obs, hist_encoding=True, scandots_latent=None)
+                actions_teacher[:,0]=0
 
             obs_student = obs.clone()
             obs_student[:, 6] = 0  # mask delta_z to be 0
@@ -122,7 +125,7 @@ def play(args):
 
             # obs, privileged_obs, rewards, dones, infos = env.step(actions_teacher.detach())  # obs has changed to next_obs !! if done obs has been reset
             obs, privileged_obs, rewards, dones, infos = env.step(actions_student.detach())  # obs has changed to next_obs !! if done obs has been reset
-
+            print(f"loss:{torch.norm(actions_student-actions_teacher, dim=-1)}")
         if args.web:
             web_viewer.render(fetch_results=True,
                         step_graphics=True,

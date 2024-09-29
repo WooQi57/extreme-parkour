@@ -32,7 +32,7 @@ from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobot
 
 class Go2RoughCfg( LeggedRobotCfg ):
     class init_state( LeggedRobotCfg.init_state ):
-        pos = [0.0, 0.0, 0.42] # x,y,z [m]
+        pos = [0.0, 0.4, 0.42] # x,y,z [m]
         default_joint_angles = { # = target angles [rad] when action = 0.0
             'FL_hip_joint': 0.1,   # [rad]
             'RL_hip_joint': 0.1,   # [rad]
@@ -75,7 +75,7 @@ class Go2RoughCfg( LeggedRobotCfg ):
             'r_finger_joint': 0.0,    # [m]
         }
     class env(LeggedRobotCfg.env):
-        num_envs = 6144
+        num_envs = 8000 #6144
         num_actions = 13
         num_dummy_dof = 1
         
@@ -87,6 +87,7 @@ class Go2RoughCfg( LeggedRobotCfg ):
 
         num_observations = n_proprio + n_scan + history_len*n_proprio + n_priv_latent + n_priv #n_scan + n_proprio + n_priv #187 + 47 + 5 + 12 
         cur_goal_max_time = 5
+        randomize_start_pos = True
 
     class depth(LeggedRobotCfg.depth):
         use_camera = False
@@ -95,8 +96,9 @@ class Go2RoughCfg( LeggedRobotCfg ):
         camera_terrain_num_cols = 20
 
         position = [0.3, 0, 0.147]  # front camera
-        angle = [27-5, 27+5]  # positive pitch down  #27-5,27+5
-
+        position_rand = 0.005
+        angle = [29-5, 29+5]  # positive pitch down  #27-5,27+5
+        # update_interval = 10  #5
         original = (106, 60)
         resized = (87, 58)
         horizontal_fov = 86
@@ -137,8 +139,8 @@ class Go2RoughCfg( LeggedRobotCfg ):
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
 
     class domain_rand( LeggedRobotCfg.domain_rand):
-        friction_range = [0.2, 2]  # 0.6 2 6?  0.6-8
-        push_robots = True
+        friction_range = [0.2, 2.]  # 0.6 2 6?  0.6-8
+        push_robots = False
         push_interval_s = 8
         max_push_vel_xy = 0.5
         max_push_vel_z = 0.5 #0.1
@@ -153,15 +155,15 @@ class Go2RoughCfg( LeggedRobotCfg ):
     class rewards( LeggedRobotCfg.rewards ):
         class scales:
             # tracking rewards
-            tracking_goal_vel = 1.5 #1.5 # 1.5
+            tracking_goal_vel = 1.5 # 1.5
             # tracking_yaw = 0.5
-            terrain_goal = 20*0
             
-            tracking_lin_vel = 1. # increase cmd following 1.5, 0.5
+            tracking_lin_vel = 0.5 # increase cmd following 1.5
             tracking_yaw_vel = 1.  # 0.5
             tracking_z = 0.05*0
-            lin_vel_z_parkour = 3 # 5
+            lin_vel_z_parkour = 0.5*0
             tracking_pitch = 1.5 #1. 1.5 5
+            tracking_gripper = 0.5
             terrain_level = 0.1*0
 
             # regularization rewards
@@ -169,18 +171,19 @@ class Go2RoughCfg( LeggedRobotCfg ):
             ang_vel_xy = -0.05 #-0.05 -0.12
             # orientation = -1.
             dof_acc = -2.5e-7
-            collision = -20.  # -5, -10  -20
+            collision = -5.  # -5, -10  -20
             action_rate = -0.1  # -0.1 -0.2
             delta_torques = -1.0e-7 #-1.0e-7 -5.0e-4
             torques = -0.00001*1
             hip_pos = -1#-0.5
             dof_error = -0.2 # -0.04 -0.2
-            feet_stumble = -3 #-20  #-1
+            feet_stumble = -5
             feet_edge = -1
             feet_drag = -0.1
             energy = -1e-3
         soft_dof_pos_limit = 0.9
         base_height_target = 0.25
+        print_rewards = False
 
     class terrain( LeggedRobotCfg.terrain):
         terrain_dict = {
@@ -198,18 +201,19 @@ class Go2RoughCfg( LeggedRobotCfg ):
         measured_edge_points_x = [-0.45, -0.3, -0.15, 0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2] # 1mx1.6m rectangle (without center line)
         measured_edge_points_y = [-0.75, -0.6, -0.45, -0.3, -0.15, 0., 0.15, 0.3, 0.45, 0.6, 0.75]
         
-        curriculum = True
+        curriculum = False
 
     class commands( LeggedRobotCfg.commands):
         num_commands = 4 # default: lin_vel_x, lin_vel_y, omega, pitch
         class max_ranges:
-            lin_vel_x = [0.2, 1.5] # min max [m/s] -0.5
+            lin_vel_x = [-0.5*0, 1.] # min max [m/s] -0.5
             lin_vel_x_parkour = [0.5, 1.2] # min max [m/s]  # 0.5 1.2
-            lin_vel_y = [-0.5, 0.5]   # min max [m/s]
+            lin_vel_y = [-0.01, 0.01]   # min max [m/s]0.5
             omega = [-0.7, 0.7]    # min max [rad/s]
-            pitch = [-0.2, 0.50]  # min max [rad]
-        lin_vel_clip = 0.2  #0.2 0.02 0.05
-        ang_clip = 0.05  # same for pitch and omega
+            pitch = [-0.02, 0.02]  # min max [rad]
+        lin_vel_clip = 0.02  #0.2 0.02 0.05
+        ang_clip = 0.05
+        pitch_clip = 0.05 
 
     class sim (LeggedRobotCfg.sim):
         dt =  0.005
@@ -234,7 +238,6 @@ class Go2RoughCfgPPO( LeggedRobotCfgPPO ):
     class policy( LeggedRobotCfgPPO.policy ):
         continue_from_last_std = False
     class algorithm( LeggedRobotCfgPPO.algorithm ):
-        gamma = 0.99 #0.99
         entropy_coef = 0.01  # 0 0.01
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''

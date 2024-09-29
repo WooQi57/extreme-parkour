@@ -46,6 +46,7 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 from time import time, sleep
 from legged_gym.utils import webviewer
+import sys
 
 def get_load_path(root, exptid, load_run=-1, checkpoint=-1, model_name_include="model"):
     if checkpoint==-1:
@@ -82,14 +83,18 @@ def play(args):
     env_cfg.terrain.curriculum = False
     env_cfg.terrain.max_difficulty = True
     
-    env_cfg.depth.angle = [27-0.1, 27+0.1]
-    env_cfg.noise.add_noise = True
-    env_cfg.domain_rand.randomize_friction = True
+    env_cfg.depth.angle = [29-0.1, 29+0.1]
+    env_cfg.position = [0.3, 0, 0.147]
+    env_cfg.position_rand = 0.01*0
+    env_cfg.noise.add_noise = False
+    env_cfg.domain_rand.randomize_friction = False # False will use minimal friction
     env_cfg.domain_rand.push_robots = False
     env_cfg.domain_rand.push_interval_s = 2
     env_cfg.domain_rand.randomize_base_mass = False
     env_cfg.domain_rand.randomize_base_com = False
-
+    env_cfg.domain_rand.randomize_motor = False
+    env_cfg.rewards.print_rewards = False
+    
     depth_latent_buffer = []
     # prepare environment
     env: LeggedRobot
@@ -106,6 +111,9 @@ def play(args):
     action_hist = []
     angle_hist = []
     dof_hist = []
+    total_rew = []
+    torque_hist = []
+    rew_log = {}
 
     if args.web:
         web_viewer.setup(env)
@@ -129,6 +137,26 @@ def play(args):
     infos = {}
     infos["depth"] = env.depth_buffer.clone().to(ppo_runner.device)[:, -1] if ppo_runner.if_depth else None
     print(f"{env.friction_coeffs_tensor=}")
+    
+    # # 203-30
+    # env.motor_strength[0,:]=torch.tensor([0.9929, 1.0525, 1.0009, 0.8281, 0.8838, 1.1968, 0.8290, 1.1138, 1.1148, 1.0191, 0.9686, 1.1285, 1.1913, 0.8139], device=env.device)
+    # env.motor_strength[1,:]=torch.tensor([1.0830, 0.9201, 0.9799, 1.1462, 1.1100, 0.8942, 0.9411, 0.8063, 1.1274, 1.1894, 0.9046, 0.9850, 1.0292, 1.0455], device=env.device)
+    # 207-31
+    # env.motor_strength[0,:]=torch.tensor([0.8317, 1.0933, 0.9149, 0.9054, 0.9159, 0.9923, 0.8742, 0.9675, 1.1260, 0.9508, 1.1286, 1.1584, 1.0495, 0.8562], device=env.device)
+    # env.motor_strength[1,:]=torch.tensor([0.9130, 1.0389, 0.9475, 1.1827, 0.9942, 0.8441, 1.0007, 1.1131, 1.0615, 1.1286, 0.9774, 0.9170, 1.1695, 0.9929], device=env.device)
+    # 202-30
+    # env.motor_strength[0,:]=torch.tensor([1.1969, 0.8113, 1.1885, 1.0147, 0.9823, 1.1997, 0.8627, 1.0189, 1.1024, 0.9395, 0.9926, 0.8427, 1.1424, 1.0296], device=env.device)
+    # env.motor_strength[1,:]=torch.tensor([1.1661, 1.0459, 1.1494, 1.0219, 1.1172, 1.1486, 0.8885, 1.1164, 1.0610, 1.1412, 0.9780, 0.9431, 0.8005, 0.9595], device=env.device)
+    # 205-30
+    # env.motor_strength[0,:]=torch.tensor([1.1858, 1.1568, 1.0145, 0.8776, 0.9550, 0.9836, 0.9865, 0.9090, 0.9550, 0.8003, 1.1019, 1.1277, 0.9863, 1.1425], device=env.device)
+    # env.motor_strength[1,:]=torch.tensor([1.1224, 1.0190, 0.9427, 0.9467, 0.8892, 0.8726, 0.8324, 0.8467, 1.0163, 0.8173, 0.8674, 0.9425, 1.1454, 1.1143], device=env.device)
+    # 204-30 can't find a good one
+    # 202-34
+    # env.motor_strength[0,:]=torch.tensor([0.8852, 1.0392, 0.8399, 1.1666, 1.1056, 0.9707, 0.8283, 1.0034, 1.1107, 0.8862, 0.9946, 0.9798, 1.1137, 0.8723], device=env.device)
+    # env.motor_strength[1,:]=torch.tensor([0.8600, 0.9529, 0.9313, 1.1716, 1.1772, 0.9846, 0.9400, 1.0100, 1.1292, 1.0291, 0.8349, 0.9301, 0.8496, 1.0705], device=env.device)
+
+    print(f"{env.motor_strength=}") 
+    # print(f"{env.dof_pos_limits=}")
     for i in range(2*int(env.max_episode_length)):
         if args.use_jit:
             if env.cfg.depth.use_camera:
@@ -142,8 +170,20 @@ def play(args):
                 #     actions = policy_jit(obs.detach(), torch.ones(env.num_envs, 32, device=env.device))
                 obs[:, 0] = -1
                 obs[:, 6] = 0
+                # depth_latent[0]=torch.tensor([-0.8619,  0.9112,  0.8675,  0.9987,  1.0000,  0.9995, -0.6052, -0.1257,
+                #                             -0.5195, -0.9969,  0.0310, -0.7561, -0.9255, -0.7634,  0.3352, -1.0000,
+                #                             0.8715, -0.2612, -0.9900,  0.8102, -0.5170,  0.9999, -0.9357, -0.6454,
+                #                             -0.9972, -0.8571,  0.9534, -0.9999, -0.9883,  0.7779, -0.9103, -0.9840],
+                #                         device='cuda:0')
                 
                 actions = policy_jit(obs.detach(), depth_latent)
+
+                # with np.printoptions(threshold=np.inf):
+                    # print(depth_latent)
+                # if i == 150:
+                #     np.save(f"depth_image.npy", infos["depth"][0].cpu().numpy())
+                #     import matplotlib.pyplot as plt
+                #     plt.imsave("first_frame.png", infos["depth"][0].cpu().numpy(), vmin=-2, vmax=2, cmap='gray')
                 # actions = ppo_runner.alg.depth_actor(obs.detach(), hist_encoding=True, scandots_latent=depth_latent)
                 # print(f"jit actions:{actions}\noriginal actions:{original_actions}")
                 # print(f"1 diff:{actions-original_actions}")
@@ -179,7 +219,6 @@ def play(args):
             # for param_tensor in state_dict:
             #     print(f"Layer: {param_tensor} \nShape: {state_dict[param_tensor].size()} \nValues: {state_dict[param_tensor]}\n")
             # raise NotImplementedError
-
         obs, _, rews, dones, infos = env.step(actions.detach())
         if args.web:
             web_viewer.render(fetch_results=True,
@@ -187,13 +226,34 @@ def play(args):
                         render_all_camera_sensors=True,
                         wait_for_page_load=True)
             web_viewer.write_vid()
+        # if i == 0:
+            # print("\n"*len(env.reward_functions))
+        # else:
+            # # sys.stdout.write("\033[F" * len(env.reward_functions))
+            # for r in range(len(env.reward_functions)):
+            #     name = env.reward_names[r]
+            #     rew = env.reward_functions[r]() * env.reward_scales[name]
+            #     sys.stdout.write(f"{r}_{name}:{rew[-1]}\n")
+            # sys.stdout.flush()
+
+
 
         # store data for plot
         cur_time = env.episode_length_buf[env.lookat_id].item() / 50
         time_hist.append(cur_time)
         angle_hist.append(env.target_angles[env.lookat_id].tolist())
         dof_hist.append(env.dof_pos[env.lookat_id].tolist())
-        # action_hist.append(actions[env.lookat_id].tolist())
+        torque_hist.append(env.torques[-1].cpu().tolist())
+        if env_cfg.rewards.print_rewards:
+            if len(rew_log) == 0:
+                for name in env.reward_names:
+                    rew_log[name] = []
+                    rew_log["total_rew"] = []
+            for name in env.reward_names:
+                rew_log[name].append(env.rew_log[name].tolist())
+            rew_log["total_rew"].append(env.rew_log["total_rew"].tolist())
+        
+        action_hist.append(actions[-1].cpu().tolist())
 
         id = env.lookat_id
         # if cur_time == 0 or i == 2*int(env.max_episode_length)-1:  #or (cur_time % env_cfg.commands.resampling_time)==0 
@@ -215,6 +275,28 @@ def play(args):
         #     time_hist = []
         #     angle_hist = []
         #     dof_hist = []
+
+        if i == 400:
+            np.save("../figs/torques.npy",np.array(torque_hist))
+            # action_hist_np = np.array(action_hist)
+            # np.save("../figs/replay_data.npy", action_hist_np)#280
+            # print("saving replay data for env -1")
+
+        if i == 500 and env_cfg.rewards.print_rewards:
+            for k,name in enumerate(rew_log):
+                plt.figure()
+                plt.plot(np.arange(len(rew_log[name]))*0.02, rew_log[name])
+                plt.xticks(np.arange(0,len(rew_log[name])*0.02 ,0.5))
+                if name == 'total_rew':
+                    plt.savefig('../figs/reward/total_rew.png')
+                else:
+                    plt.savefig(f'../figs/reward/{k}_{name}.png')
+                plt.close()
+    if env_cfg.rewards.print_rewards:       
+        print("---------------- mean reward ----------------")
+        for k,name in enumerate(rew_log):
+            print(f"{k}_{name}: {statistics.mean(rew_log[name])}")
+        print(f"total rew mean: {statistics.mean(rew_log['total_rew'])}")
 
 if __name__ == '__main__':
     EXPORT_POLICY = False

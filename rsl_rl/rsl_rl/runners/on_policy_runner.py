@@ -84,8 +84,8 @@ class OnPolicyRunner:
                                                     self.depth_encoder_cfg["hidden_dims"],
                                                     )
             depth_encoder = RecurrentDepthBackbone(depth_backbone, env.cfg).to(self.device)
-            # depth_actor = deepcopy(actor_critic.actor)  #
-            depth_actor = Actor(self.env.cfg.env.n_proprio,self.env.cfg.env.n_scan, self.env.num_actions, self.policy_cfg["scan_encoder_dims"], self.policy_cfg["actor_hidden_dims"], self.policy_cfg["priv_encoder_dims"], self.env.cfg.env.n_priv_latent, self.env.cfg.env.n_priv, self.env.cfg.env.history_len, get_activation('elu'), tanh_encoder_output=False).to(self.device)
+            depth_actor = deepcopy(actor_critic.actor)  #
+            # depth_actor = Actor(self.env.cfg.env.n_proprio,self.env.cfg.env.n_scan, self.env.num_actions, self.policy_cfg["scan_encoder_dims"], self.policy_cfg["actor_hidden_dims"], self.policy_cfg["priv_encoder_dims"], self.env.cfg.env.n_priv_latent, self.env.cfg.env.n_priv, self.env.cfg.env.history_len, get_activation('elu'), tanh_encoder_output=False).to(self.device)
             depth_actor.use_2ac = False
             depth_actor.depth_actor_use_actor1 = False
         else:
@@ -271,6 +271,8 @@ class OnPolicyRunner:
                 
                 with torch.no_grad():
                     actions_teacher = teacher_policy(obs, hist_encoding=True, scandots_latent=None)
+                    # actions_teacher[:,-1]=0
+
                     actions_teacher_buffer.append(actions_teacher)
 
                 obs_student = obs.clone()
@@ -294,7 +296,7 @@ class OnPolicyRunner:
                 else:
                     # obs, privileged_obs, rewards, dones, infos = self.env.step(actions_student.detach())  # obs has changed to next_obs !! if done obs has been reset
                     # first 1/3 of the time, use teacher actions, the rest use student actions
-                    teacher_fraction = 1/6 # 1/3
+                    teacher_fraction = 1/16 # 1/3
                     num_teacher_actions_flat = int(actions_teacher.size(0)*teacher_fraction/2 )  # 1/6
                     mid = int(actions_teacher.size(0)*0.5)  # 1/2
                     num_teacher_actions_step = mid + num_teacher_actions_flat  # 1/6
